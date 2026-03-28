@@ -77,6 +77,33 @@
         "uid": { "type": "string", "description": "Owner UID." }
       },
       "required": ["content", "uid"]
+    },
+    "portfolio": {
+      "title": "Portfolio Item",
+      "description": "A showcase item for the nail designer portfolio.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of the work." },
+        "category": { "type": "string", "enum": ["Nail Art", "Alongamento", "Natural", "Esmaltação"], "description": "Category of the work." },
+        "imageUrl": { "type": "string", "format": "uri", "description": "URL of the image." },
+        "likes": { "type": "integer", "description": "Number of likes." },
+        "comments": { "type": "integer", "description": "Number of comments." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp." }
+      },
+      "required": ["title", "category", "imageUrl"]
+    },
+    "profile": {
+      "title": "User Profile",
+      "description": "Extended user information.",
+      "type": "object",
+      "properties": {
+        "full_name": { "type": "string", "description": "User's full name." },
+        "email": { "type": "string", "format": "email", "description": "User's email." },
+        "phone": { "type": "string", "description": "User's phone number." },
+        "role": { "type": "string", "enum": ["admin", "cliente"], "description": "User's role." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp." }
+      },
+      "required": ["full_name", "email", "role"]
     }
   },
   "firestore": {
@@ -84,6 +111,8 @@
     "/appointments/{appointmentId}": { "schema": "appointment", "description": "Scheduled meetings." },
     "/opportunities/{opportunityId}": { "schema": "opportunity", "description": "Sales opportunities." },
     "/timeline/{eventId}": { "schema": "timeline", "description": "Activity history." },
-    "/notes/{noteId}": { "schema": "note", "description": "Quick notes." }
+    "/notes/{noteId}": { "schema": "note", "description": "Quick notes." },
+    "/portfolio/{itemId}": { "schema": "portfolio", "description": "Portfolio items." },
+    "/profiles/{userId}": { "schema": "profile", "description": "User profiles." }
   }
 }

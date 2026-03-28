@@ -20,6 +20,15 @@ service cloud.firestore {
     // Collection: notes
     // Fields: content, color, contactId, uid
     //
+    // Collection: portfolio
+    // Fields: title, category, imageUrl, likes, comments, createdAt
+    //
+    // Collection: profiles
+    // Fields: full_name, email, phone, role, createdAt
+    //
+    // Collection: solicitacoes
+    // Fields: user_id, tipo, dados_anteriores, dados_novos, status, createdAt
+    //
     // ===============================================================
 
     // ===============================================================
@@ -35,6 +44,12 @@ service cloud.firestore {
 
     function isDocOwner() {
       return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "rafaeldesjapp@gmail.com" && request.auth.token.email_verified == true));
     }
 
     function uidUnchanged() {
@@ -97,6 +112,27 @@ service cloud.firestore {
              data.content is string && data.content.size() > 0 && data.content.size() < 2000;
     }
 
+    function isValidPortfolio(data) {
+      return hasRequiredFields(['title', 'category', 'imageUrl']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.category in ['Nail Art', 'Alongamento', 'Natural', 'Esmaltação'] &&
+             isValidUrl(data.imageUrl);
+    }
+
+    function isValidProfile(data) {
+      return hasRequiredFields(['full_name', 'email', 'role']) &&
+             data.full_name is string && data.full_name.size() > 0 &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'cliente'];
+    }
+
+    function isValidSolicitacao(data) {
+      return hasRequiredFields(['user_id', 'tipo', 'status']) &&
+             data.user_id is string &&
+             data.tipo is string &&
+             data.status in ['pendente', 'aprovada', 'rejeitada'];
+    }
+
     // ===============================================================
     // Collection Rules
     // ===============================================================
@@ -134,6 +170,27 @@ service cloud.firestore {
       allow create: if isAuthenticated() && isValidNote(request.resource.data) && uidUnchanged();
       allow update: if isDocOwner() && isValidNote(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner();
+    }
+
+    match /portfolio/{itemId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidPortfolio(request.resource.data);
+      allow update: if isAdmin() && isValidPortfolio(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /profiles/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (isOwner(userId) || isAdmin()) && isValidProfile(request.resource.data);
+      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin()) && isValidProfile(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /solicitacoes/{solicitacaoId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.user_id == request.auth.uid);
+      allow create: if isAuthenticated() && isValidSolicitacao(request.resource.data) && request.resource.data.user_id == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
   }
 }

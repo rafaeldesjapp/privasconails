@@ -13,7 +13,7 @@ import {
   LogOut, 
   Plus,
   X,
-  Briefcase,
+  Sparkles,
   Tag,
   Paintbrush,
   Bell
@@ -73,7 +73,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   }, [role]);
 
   const navItems = [
-    { name: 'Meu Portfólio', icon: Briefcase, href: '/portfolio' },
+    { name: 'Meu Portfólio', icon: Sparkles, href: '/portfolio' },
     { name: 'Tabela de Preços', icon: Tag, href: '/tabela-precos' },
     { name: 'Dashboard', icon: LayoutDashboard, href: '/' },
     { name: 'Contatos', icon: Users, href: '/contatos' },
