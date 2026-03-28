@@ -37,16 +37,13 @@ export function useSupabaseAuth() {
           .single();
         
         if (profileError && profileError.code === 'PGRST116') {
-          // Perfil não existe, vamos criar um
-          const isClientEmail = ['cliente@gmail.com', 'abacaxi@abacaxi'].includes(currentUser.email || '');
-          const newRole = isClientEmail ? 'cliente' : 'admin';
-          
+          // Perfil não existe, vamos criar um como CLIENTE por padrão
           const { data: newProfile, error: createError } = await supabase
             .from('profiles')
             .insert({
               id: currentUser.id,
               email: currentUser.email,
-              role: newRole
+              role: 'cliente'
             })
             .select('role')
             .single();
@@ -63,7 +60,8 @@ export function useSupabaseAuth() {
           if (currentUser.email === 'rafaeldesjapp@gmail.com') {
             setRole('admin');
           } else {
-            setRole('Usuário');
+            // Qualquer outro usuário é cliente por padrão
+            setRole('cliente');
           }
         } else {
           setRole(profile?.role || 'cliente');
