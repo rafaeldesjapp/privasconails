@@ -21,12 +21,28 @@ const Auth = () => {
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
         });
         if (error) throw error;
-        setSuccess('Verifique seu e-mail para confirmar o cadastro!');
+        
+        // Após criar o usuário, forçar o perfil como 'cliente'
+        if (data.user) {
+          // Aguardar um pouco para o trigger criar o perfil
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Forçar atualização para cliente
+          await supabase
+            .from('profiles')
+            .upsert({
+              id: data.user.id,
+              email: data.user.email,
+              role: 'cliente'
+            });
+        }
+        
+        setSuccess('Conta criada com sucesso! Você já pode fazer login.');
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,

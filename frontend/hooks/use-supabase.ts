@@ -48,9 +48,15 @@ export function useSupabaseAuth() {
             .select('role')
             .single();
           
-          if (!createError) {
+          if (!createError && newProfile) {
             profile = newProfile;
             profileError = null;
+          } else {
+            // Se falhou ao criar, força cliente
+            console.log('Não foi possível criar perfil, usando cliente como padrão');
+            setRole('cliente');
+            setLoading(false);
+            return;
           }
         }
 
@@ -64,7 +70,13 @@ export function useSupabaseAuth() {
             setRole('cliente');
           }
         } else {
-          setRole(profile?.role || 'cliente');
+          // Verifica se é o admin principal
+          if (currentUser.email === 'rafaeldesjapp@gmail.com') {
+            setRole('admin');
+          } else {
+            // Para outros usuários, respeita o que está no banco
+            setRole(profile?.role || 'cliente');
+          }
         }
       } else {
         setRole(null);
