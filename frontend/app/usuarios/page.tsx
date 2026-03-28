@@ -5,7 +5,7 @@ import { useSupabaseAuth, useSupabaseQuery } from '@/hooks/use-supabase';
 import { supabase } from '@/lib/supabase';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
-import { Users, Shield, User as UserIcon, Check, X, AlertCircle } from 'lucide-react';
+import { Users, Shield, User as UserIcon, Check, X, AlertCircle, Key, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import Link from 'next/link';
@@ -16,6 +16,16 @@ const UsuariosPage = () => {
   const { data: profiles, loading: profilesLoading, error } = useSupabaseQuery('profiles');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [localProfiles, setLocalProfiles] = useState<any[]>([]);
+  
+  // Estados para modal de alterar senha
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [updatingPassword, setUpdatingPassword] = useState(false);
 
   // Sincronizar profiles com localProfiles
   React.useEffect(() => {
@@ -23,6 +33,70 @@ const UsuariosPage = () => {
       setLocalProfiles(profiles);
     }
   }, [profiles]);
+
+  // Função para abrir modal de alterar senha
+  const openPasswordModal = (profile: any) => {
+    setSelectedUser(profile);
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError(null);
+    setPasswordSuccess(null);
+    setShowPassword(false);
+    setShowPasswordModal(true);
+  };
+
+  // Função para alterar senha
+  const handleChangePassword = async () => {
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    // Validações
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordError('A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('As senhas não coincidem.');
+      return;
+    }
+
+    setUpdatingPassword(true);
+
+    try {
+      // Usar a API para alterar senha
+      const response = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: selectedUser.id,
+          newPassword: newPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao alterar senha');
+      }
+
+      setPasswordSuccess(`Senha do usuário ${selectedUser.email} alterada com sucesso!`);
+      setNewPassword('');
+      setConfirmPassword('');
+      
+      // Fechar modal após 2 segundos
+      setTimeout(() => {
+        setShowPasswordModal(false);
+        setPasswordSuccess(null);
+      }, 2000);
+
+    } catch (err: any) {
+      console.error('Erro ao alterar senha:', err);
+      setPasswordError(err.message || 'Erro ao alterar senha. Verifique as permissões.');
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
 
   const toggleRole = async (profileId: string, currentRole: string) => {
     setUpdatingId(profileId);
@@ -135,23 +209,117 @@ const UsuariosPage = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => toggleRole(profile.id, profile.role)}
-                        disabled={updatingId === profile.id || profile.id === user?.id}
-                        className={cn(
-                          "text-xs font-bold px-4 py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed",
-                          profile.role === 'admin'
-                            ? "text-amber-600 hover:bg-amber-50"
-                            : "text-blue-600 hover:bg-blue-50"
-                        )}
-                      >
-                        {updatingId === profile.id ? 'Atualizando...' : (profile.role === 'admin' ? 'Tornar Cliente' : 'Tornar Admin')}
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openPasswordModal(profile)}
+                          className="text-xs font-bold px-3 py-2 rounded-lg transition-all text-slate-600 hover:bg-slate-100 flex items-center gap-1"
+                          title="Alterar Senha"
+                        >
+                          <Key className="w-3.5 h-3.5" />
+                          Senha
+                        </button>
+                        <button
+                          onClick={() => toggleRole(profile.id, profile.role)}
+                          disabled={updatingId === profile.id || profile.id === user?.id}
+                          className={cn(
+                            "text-xs font-bold px-4 py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                            profile.role === 'admin'
+                              ? "text-amber-600 hover:bg-amber-50"
+                              : "text-blue-600 hover:bg-blue-50"
+                          )}
+                        >
+                          {updatingId === profile.id ? 'Atualizando...' : (profile.role === 'admin' ? 'Tornar Cliente' : 'Tornar Admin')}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Alterar Senha */}
+      {showPasswordModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 bg-blue-100 rounded-xl">
+                <Key className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-slate-800">Alterar Senha</h2>
+                <p className="text-sm text-slate-500">{selectedUser.email}</p>
+              </div>
+            </div>
+
+            {passwordError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {passwordError}
+              </div>
+            )}
+
+            {passwordSuccess && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-100 text-green-600 rounded-xl text-sm flex items-center gap-2">
+                <Check className="w-4 h-4 flex-shrink-0" />
+                {passwordSuccess}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Nova Senha
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    placeholder="Digite a nova senha"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Confirmar Senha
+                </label>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  placeholder="Confirme a nova senha"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowPasswordModal(false)}
+                className="flex-1 py-3 px-4 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleChangePassword}
+                disabled={updatingPassword || !newPassword || !confirmPassword}
+                className="flex-1 py-3 px-4 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {updatingPassword ? 'Salvando...' : 'Salvar Senha'}
+              </button>
+            </div>
           </div>
         </div>
       )}
