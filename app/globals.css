@@ -2,6 +2,7 @@
 
 @theme {
   --font-dancing: "Dancing Script", cursive;
+  --font-mplus: "M PLUS Rounded 1c", sans-serif;
 }
 
 @layer utilities {
