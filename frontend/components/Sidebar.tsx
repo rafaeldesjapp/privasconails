@@ -1,0 +1,152 @@
+'use client';
+
+import React, { useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { 
+  LayoutDashboard, 
+  Users, 
+  CalendarDays, 
+  Kanban, 
+  History, 
+  Settings, 
+  LogOut, 
+  Plus,
+  X,
+  Briefcase,
+  Tag,
+  Paintbrush
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
+import { useSupabaseAuth } from '@/hooks/use-supabase';
+
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
+  const pathname = usePathname();
+  const { role } = useSupabaseAuth();
+
+  const navItems = [
+    { name: 'Meu Portfólio', icon: Briefcase, href: '/portfolio' },
+    { name: 'Tabela de Preços', icon: Tag, href: '/tabela-precos' },
+    { name: 'Dashboard', icon: LayoutDashboard, href: '/' },
+    { name: 'Contatos', icon: Users, href: '/contatos' },
+    { name: 'Agenda', icon: CalendarDays, href: '/agenda' },
+    { name: 'Pipeline', icon: Kanban, href: '/pipeline' },
+    { name: 'Histórico', icon: History, href: '/historico' },
+  ];
+
+  const filteredNavItems = role === 'admin' 
+    ? navItems 
+    : navItems.filter(item => 
+        ['Meu Portfólio', 'Tabela de Preços', 'Agenda', 'Histórico'].includes(item.name)
+      );
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      // Força reload da página
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Error signing out:', error);
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+      }
+    }
+  };
+
+  return (
+    <aside className={cn(
+      "fixed left-0 top-0 h-full z-50 flex flex-col bg-slate-50 w-64 border-r border-slate-200 transition-transform duration-300 lg:translate-x-0",
+      isOpen ? "translate-x-0" : "-translate-x-full"
+    )}>
+      <div className="p-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 font-dancing">
+            Priscila Vasconcelos
+          </h1>
+          <p className="text-sm font-medium bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 font-dancing flex items-center gap-1">
+            Nail Designer
+            <Paintbrush className="w-3 h-3 text-pink-500 inline-block" />
+          </p>
+        </div>
+        <button 
+          onClick={onClose}
+          className="lg:hidden p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      
+      <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
+        {filteredNavItems.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              onClick={() => onClose()}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 transition-all duration-200 rounded-xl",
+                isActive 
+                  ? "bg-white text-blue-700 shadow-sm font-bold border border-slate-100" 
+                  : "text-slate-600 hover:text-blue-600 hover:bg-slate-200/50"
+              )}
+            >
+              <item.icon className={cn("w-5 h-5", isActive ? "text-blue-700" : "text-slate-400")} />
+              <span className="text-sm">{item.name}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {role === 'admin' && (
+        <div className="p-4 bg-slate-100/30">
+          <button className="w-full py-3 px-4 bg-gradient-to-br from-[#003d9b] to-[#0052cc] text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10 hover:scale-[1.02] active:scale-[0.98] transition-all text-sm">
+            <Plus className="w-4 h-4" />
+            Novo Negócio
+          </button>
+        </div>
+      )}
+
+      <div className="p-4 border-t border-slate-100 space-y-1">
+        {role === 'admin' && (
+          <Link 
+            href="/usuarios"
+            onClick={() => onClose()}
+            className={cn(
+              "flex items-center gap-3 px-4 py-3 transition-colors duration-200 rounded-xl hover:bg-slate-50",
+              pathname === '/usuarios' ? "text-blue-600 bg-white shadow-sm border border-slate-100 font-bold" : "text-slate-600 hover:text-blue-600"
+            )}
+          >
+            <Users className="w-5 h-5 text-slate-400" />
+            <span className="text-sm font-medium">Usuários</span>
+          </Link>
+        )}
+        <Link 
+          href="/configuracoes"
+          onClick={() => onClose()}
+          className="flex items-center gap-3 px-4 py-3 text-slate-600 hover:text-blue-600 transition-colors duration-200 rounded-xl hover:bg-slate-50"
+        >
+          <Settings className="w-5 h-5 text-slate-400" />
+          <span className="text-sm font-medium">Configurações</span>
+        </Link>
+        <button 
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:text-red-600 transition-colors duration-200 rounded-xl hover:bg-red-50"
+        >
+          <LogOut className="w-5 h-5 text-slate-400" />
+          <span className="text-sm font-medium">Sair</span>
+        </button>
+      </div>
+    </aside>
+  );
+};
+
+export default Sidebar;

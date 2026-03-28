@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "contact": {
+      "title": "Contact",
+      "description": "A business contact or account.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the contact." },
+        "role": { "type": "string", "description": "Job title/role." },
+        "company": { "type": "string", "description": "Company name." },
+        "status": { "type": "string", "enum": ["Key Account", "Follow-up Pendente", "Lead"], "description": "Account status." },
+        "healthScore": { "type": "number", "description": "Health score (0-100)." },
+        "openValue": { "type": "number", "description": "Total open value in BRL." },
+        "lastInteraction": { "type": "string", "format": "date-time", "description": "Last interaction timestamp." },
+        "email": { "type": "string", "format": "email", "description": "Corporate email." },
+        "phone": { "type": "string", "description": "Mobile phone number." },
+        "location": { "type": "string", "description": "Office location." },
+        "photoUrl": { "type": "string", "format": "uri", "description": "Profile photo URL." },
+        "uid": { "type": "string", "description": "Owner UID." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp." }
+      },
+      "required": ["name", "role", "company", "uid"]
+    },
+    "appointment": {
+      "title": "Appointment",
+      "description": "A scheduled meeting or task.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Meeting title." },
+        "date": { "type": "string", "format": "date", "description": "Meeting date (YYYY-MM-DD)." },
+        "startTime": { "type": "string", "description": "Start time (HH:MM)." },
+        "endTime": { "type": "string", "description": "End time (HH:MM)." },
+        "type": { "type": "string", "enum": ["Google Meet", "Presencial", "Call"], "description": "Meeting type." },
+        "contactId": { "type": "string", "description": "Reference to the contact." },
+        "uid": { "type": "string", "description": "Owner UID." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp." }
+      },
+      "required": ["title", "date", "startTime", "uid"]
+    },
+    "opportunity": {
+      "title": "Opportunity",
+      "description": "A business opportunity or deal.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Opportunity title." },
+        "value": { "type": "number", "description": "Deal value in BRL." },
+        "status": { "type": "string", "enum": ["NEGOCIAÇÃO", "QUALIFICAÇÃO", "FECHADO"], "description": "Deal status." },
+        "pipeline": { "type": "string", "description": "Pipeline name." },
+        "closingDate": { "type": "string", "format": "date", "description": "Expected closing date." },
+        "contactId": { "type": "string", "description": "Reference to the contact." },
+        "uid": { "type": "string", "description": "Owner UID." }
+      },
+      "required": ["title", "value", "status", "uid"]
+    },
+    "timeline": {
+      "title": "Timeline Event",
+      "description": "An event in the contact's history.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["call", "mail", "note"], "description": "Event type." },
+        "title": { "type": "string", "description": "Event title." },
+        "description": { "type": "string", "description": "Event details." },
+        "date": { "type": "string", "format": "date-time", "description": "Event timestamp." },
+        "contactId": { "type": "string", "description": "Reference to the contact." },
+        "uid": { "type": "string", "description": "Owner UID." }
+      },
+      "required": ["type", "title", "date", "uid"]
+    },
+    "note": {
+      "title": "Quick Note",
+      "description": "A quick note about a contact.",
+      "type": "object",
+      "properties": {
+        "content": { "type": "string", "description": "Note content." },
+        "color": { "type": "string", "enum": ["amber", "blue", "green"], "description": "Note color theme." },
+        "contactId": { "type": "string", "description": "Reference to the contact." },
+        "uid": { "type": "string", "description": "Owner UID." }
+      },
+      "required": ["content", "uid"]
+    }
+  },
+  "firestore": {
+    "/contacts/{contactId}": { "schema": "contact", "description": "Business contacts." },
+    "/appointments/{appointmentId}": { "schema": "appointment", "description": "Scheduled meetings." },
+    "/opportunities/{opportunityId}": { "schema": "opportunity", "description": "Sales opportunities." },
+    "/timeline/{eventId}": { "schema": "timeline", "description": "Activity history." },
+    "/notes/{noteId}": { "schema": "note", "description": "Quick notes." }
+  }
+}

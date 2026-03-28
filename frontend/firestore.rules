@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: contacts
+    // Fields: name, role, company, status, healthScore, openValue, lastInteraction, email, phone, location, photoUrl, uid, createdAt
+    //
+    // Collection: appointments
+    // Fields: title, date, startTime, endTime, type, contactId, uid, createdAt
+    //
+    // Collection: opportunities
+    // Fields: title, value, status, pipeline, closingDate, contactId, uid
+    //
+    // Collection: timeline
+    // Fields: type, title, description, date, contactId, uid
+    //
+    // Collection: notes
+    // Fields: content, color, contactId, uid
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidContact(data) {
+      return hasRequiredFields(['name', 'role', 'company', 'uid']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.role is string && data.role.size() > 0 && data.role.size() < 100 &&
+             data.company is string && data.company.size() > 0 && data.company.size() < 100 &&
+             (!('email' in data) || isValidEmail(data.email)) &&
+             (!('photoUrl' in data) || isValidUrl(data.photoUrl));
+    }
+
+    function isValidAppointment(data) {
+      return hasRequiredFields(['title', 'date', 'startTime', 'uid']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.date is string && data.startTime is string;
+    }
+
+    function isValidOpportunity(data) {
+      return hasRequiredFields(['title', 'value', 'status', 'uid']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.value is number && data.status is string;
+    }
+
+    function isValidTimeline(data) {
+      return hasRequiredFields(['type', 'title', 'date', 'uid']) &&
+             data.type in ['call', 'mail', 'note'] &&
+             data.title is string && data.title.size() > 0;
+    }
+
+    function isValidNote(data) {
+      return hasRequiredFields(['content', 'uid']) &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 2000;
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /contacts/{contactId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidContact(request.resource.data) && uidUnchanged();
+      allow update: if isDocOwner() && isValidContact(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner();
+    }
+
+    match /appointments/{appointmentId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidAppointment(request.resource.data) && uidUnchanged();
+      allow update: if isDocOwner() && isValidAppointment(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner();
+    }
+
+    match /opportunities/{opportunityId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidOpportunity(request.resource.data) && uidUnchanged();
+      allow update: if isDocOwner() && isValidOpportunity(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner();
+    }
+
+    match /timeline/{eventId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidTimeline(request.resource.data) && uidUnchanged();
+      allow update: if isDocOwner() && isValidTimeline(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner();
+    }
+
+    match /notes/{noteId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidNote(request.resource.data) && uidUnchanged();
+      allow update: if isDocOwner() && isValidNote(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner();
+    }
+  }
+}
