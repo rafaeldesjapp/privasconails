@@ -93,7 +93,14 @@ const SolicitacoesPage = () => {
       // Marcar como aprovado
       const { error } = await supabase
         .from('solicitacoes')
-        .update({ status: 'aprovado' })
+        .update({ 
+          status: 'aprovado',
+          data: {
+            ...request.data,
+            resolved_by: user?.email,
+            resolved_at: new Date().toISOString()
+          }
+        })
         .eq('id', request.id);
 
       if (error) throw error;
@@ -108,13 +115,20 @@ const SolicitacoesPage = () => {
     }
   };
 
-  const handleReject = async (requestId: string) => {
-    setProcessingId(requestId);
+  const handleReject = async (request: any) => {
+    setProcessingId(request.id);
     try {
       const { error } = await supabase
         .from('solicitacoes')
-        .update({ status: 'rejeitado' })
-        .eq('id', requestId);
+        .update({ 
+          status: 'rejeitado',
+          data: {
+            ...request.data,
+            resolved_by: user?.email,
+            resolved_at: new Date().toISOString()
+          }
+        })
+        .eq('id', request.id);
 
       if (error) throw error;
       
@@ -251,13 +265,20 @@ const SolicitacoesPage = () => {
                               )}
                             </div>
                           </div>
+                          
+                          {request.status !== 'pendente' && request.data.resolved_by && (
+                            <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50/50 p-2 rounded-lg border border-slate-200 w-fit">
+                              <User className="w-3.5 h-3.5" />
+                              <span>{request.status === 'aprovado' ? 'Aprovado' : 'Rejeitado'} por: <strong className="font-bold text-slate-700">{request.data.resolved_by}</strong></span>
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       {request.status === 'pendente' && (
                         <div className="flex items-center gap-2 self-end md:self-center">
                           <button
-                            onClick={() => handleReject(request.id)}
+                            onClick={() => handleReject(request)}
                             disabled={processingId === request.id}
                             className="p-3 text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
                             title="Rejeitar"

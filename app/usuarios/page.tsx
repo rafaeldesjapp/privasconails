@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import Auth from '@/components/Auth';
-import { Users, Shield, User as UserIcon, Check, X, AlertCircle, Key, Eye, EyeOff, Pencil, Mail, Phone, Plus } from 'lucide-react';
+import { Users, Shield, User as UserIcon, Check, X, AlertCircle, Key, Eye, EyeOff, Pencil, Mail, Phone, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import Link from 'next/link';
@@ -47,6 +47,12 @@ const UsuariosPage = () => {
   const [newPhone, setNewPhone] = useState('');
   const [newPasswordValue, setNewPasswordValue] = useState('');
   const [creatingUser, setCreatingUser] = useState(false);
+
+  // Estados para exclusão de usuário
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deletingUser, setDeletingUser] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Sincronizar profiles com localProfiles
   React.useEffect(() => {
@@ -337,6 +343,54 @@ const UsuariosPage = () => {
     }
   };
 
+  const openDeleteModal = (profile: any) => {
+    if (currentUserRole !== 'admin') {
+      alert('Apenas administradores podem excluir usuários.');
+      return;
+    }
+    setSelectedUser(profile);
+    setDeletePassword('');
+    setDeleteError(null);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deletePassword) {
+      setDeleteError('A senha é obrigatória para excluir o usuário.');
+      return;
+    }
+    setDeletingUser(true);
+    setDeleteError(null);
+
+    try {
+      const response = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetUserId: selectedUser.id,
+          adminEmail: user?.email,
+          adminPassword: deletePassword,
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao excluir usuário');
+      }
+
+      // Remover o usuário localmente
+      setLocalProfiles(prev => prev.filter(p => p.id !== selectedUser.id));
+      setShowDeleteModal(false);
+      alert('Usuário excluído com sucesso!');
+    } catch (err: any) {
+      console.error('Erro na exclusão:', err);
+      setDeleteError(err.message || 'Erro ao processar solicitação.');
+    } finally {
+      setDeletingUser(false);
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -504,6 +558,19 @@ const UsuariosPage = () => {
                                 >
                                   <Eye className="w-3.5 h-3.5" />
                                   Redefinir Senha
+                                </button>
+                              )}
+                              {currentUserRole === 'admin' && (
+                                <button
+                                  onClick={() => openDeleteModal(profile)}
+                                  disabled={profile.id === user?.id}
+                                  className={cn(
+                                    "p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                                    "text-red-500 hover:bg-red-50 hover:text-red-600"
+                                  )}
+                                  title={profile.id === user?.id ? "Você não pode excluir a si mesmo" : "Excluir Usuário"}
+                                >
+                                  <Trash2 className="w-4 h-4" />
                                 </button>
                               )}
                               {currentUserRole === 'admin' && (
@@ -900,6 +967,74 @@ const UsuariosPage = () => {
                 className="flex-1 py-3 px-4 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {creatingUser ? 'Criando...' : 'Criar Usuário'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Excluir Usuário */}
+      {showDeleteModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 bg-red-100 rounded-xl">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-slate-800">Excluir Usuário</h2>
+                <p className="text-sm text-slate-500">Ação irreversível para {selectedUser.email}</p>
+              </div>
+            </div>
+
+            {deleteError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {deleteError}
+              </div>
+            )}
+
+            <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl mb-6">
+              <p className="text-sm text-orange-800 font-medium">
+                Esta ação excluirá permanentemente o usuário <strong className="font-bold">{selectedUser.email}</strong>. Por questões de segurança, digite a sua senha de administrador para confirmar e registrar este evento.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Sua Senha (Admin)</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all"
+                    placeholder="Sua senha para confirmar"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 py-3 px-4 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteUser}
+                disabled={deletingUser || !deletePassword}
+                className="flex-1 py-3 px-4 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deletingUser ? 'Excluindo...' : 'Excluir Definitivamente'}
               </button>
             </div>
           </div>
