@@ -19,6 +19,32 @@ export default function ConfiguracoesPage() {
   const [logsLoading, setLogsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('logs');
 
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [savingConfig, setSavingConfig] = useState(false);
+
+  useEffect(() => {
+    if (currentUserRole === 'admin') {
+      const loadSettings = async () => {
+        const { data } = await supabase.from('configuracoes').select('valor').eq('chave', 'whatsapp_studio').single();
+        if (data?.valor) {
+          setWhatsappNumber(data.valor.replace(/"/g, ''));
+        }
+      };
+      loadSettings();
+    }
+  }, [currentUserRole]);
+
+  const saveConfig = async () => {
+    setSavingConfig(true);
+    const num = whatsappNumber.replace(/\D/g, '');
+    const { error } = await supabase.from('configuracoes')
+      .upsert({ chave: 'whatsapp_studio', valor: JSON.stringify(num) }, { onConflict: 'chave' });
+    
+    if (error) alert('Erro ao salvar configuração. Verifique a tabela no Supabase.');
+    else alert('Número do WhatsApp salvo com sucesso!');
+    setSavingConfig(false);
+  };
+
   useEffect(() => {
     // Se logado e NÃO for admin, joga pra dashboard (Proteção)
     if (!authLoading && user && currentUserRole !== 'admin') {
@@ -232,10 +258,37 @@ export default function ConfiguracoesPage() {
               </div>
             )}
 
-            {/* Aba de Ajustes Gerais - Vazia para implementações futuras */}
+            {/* Aba de Ajustes Gerais */}
             {activeTab === 'geral' && (
-              <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 text-center text-slate-500">
-                Opções da conta e perfil empresarial entrarão aqui brevemente.
+              <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 lg:p-8">
+                <div className="mb-8">
+                  <h3 className="text-lg font-black text-slate-800 mb-2">WhatsApp do Estúdio (Obrigatório)</h3>
+                  <p className="text-sm text-slate-500">
+                    Sempre que um cliente fizer um agendamento na plataforma, ele será **obrigado** a disparar uma mensagem de confirmação para este número, caso contrário o horário não é salvo. 
+                    Insira apenas os números (ex: 5511999999999).
+                  </p>
+                </div>
+
+                <div className="max-w-md bg-slate-50 border border-slate-200 rounded-2xl p-6">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Número Recebedor</label>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl font-bold text-slate-400">+</span>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: 5511988887777"
+                      className="flex-1 bg-white border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-bold tracking-wider placeholder:font-normal placeholder:text-slate-400"
+                      value={whatsappNumber}
+                      onChange={(e) => setWhatsappNumber(e.target.value.replace(/\D/g, ''))}
+                    />
+                  </div>
+                  <button 
+                    onClick={saveConfig}
+                    disabled={savingConfig || whatsappNumber.length < 10}
+                    className="mt-6 w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl shadow-md transition-all flex justify-center items-center gap-2"
+                  >
+                    {savingConfig ? <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full"></div> : 'Salvar WhatsApp'}
+                  </button>
+                </div>
               </div>
             )}
 
