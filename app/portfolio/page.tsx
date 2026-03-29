@@ -22,7 +22,8 @@ import {
   X,
   Upload,
   Loader2,
-  Check
+  Check,
+  Paperclip
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Image from 'next/image';
@@ -54,6 +55,7 @@ const PortfolioPage = () => {
     category: 'Nail Art',
     imageUrl: ''
   });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const categories = ['Todos', 'Nail Art', 'Alongamento', 'Natural', 'Esmaltação'];
 
@@ -84,8 +86,8 @@ const PortfolioPage = () => {
     try {
       const { data, error } = await supabase
         .from('portfolio')
-        .select('*')
-        .order('createdAt', { ascending: false });
+        .select('id, title, category, imageUrl:imageurl, likes, comments, createdAt:createdat')
+        .order('createdat', { ascending: false });
       
       if (error) throw error;
       setPortfolioItems(data || []);
@@ -98,36 +100,73 @@ const PortfolioPage = () => {
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newItem.title || !newItem.imageUrl) return;
+    if (!newItem.title || !selectedFile) {
+        alert("Por favor, selecione uma imagem do dispositivo.");
+        return;
+    }
 
     setIsSaving(true);
     try {
+      // 1. Fazer upload da imagem física para o Storage
+      const fileExt = selectedFile.name.split('.').pop() || 'jpg';
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `images/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('portfolio_images')
+        .upload(filePath, selectedFile);
+
+      if (uploadError) throw uploadError;
+
+      // 2. Pegar a URL pública
+      const { data: publicUrlData } = supabase.storage
+        .from('portfolio_images')
+        .getPublicUrl(filePath);
+
+      const finalImageUrl = publicUrlData.publicUrl;
+
+      // 3. Salvar no banco de dados com a URL real do Storage
       const { error } = await supabase
         .from('portfolio')
         .insert([{
-          ...newItem,
+          title: newItem.title,
+          category: newItem.category,
+          imageurl: finalImageUrl,
           likes: Math.floor(Math.random() * 200),
           comments: Math.floor(Math.random() * 20),
-          createdAt: new Date().toISOString()
+          createdat: new Date().toISOString()
         }]);
 
       if (error) throw error;
       
       setIsModalOpen(false);
       setNewItem({ title: '', category: 'Nail Art', imageUrl: '' });
+      setSelectedFile(null);
       fetchPortfolio();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar item:', error);
-      alert('Erro ao salvar item. Verifique se a tabela "portfolio" existe no Supabase.');
+      alert('Erro ao salvar item. Mensagem: ' + error.message);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDeleteItem = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este item?')) return;
+  const handleDeleteItem = async (id: string, imageUrl: string) => {
+    if (!confirm('Tem certeza que deseja excluir este item e a imagem associada?')) return;
 
     try {
+      // 1. Tentar deletar o arquivo físico do Storage extraindo o caminho da URL
+      const urlMatches = imageUrl.match(/portfolio_images\/(.+)$/);
+      if (urlMatches && urlMatches[1]) {
+        const filePath = urlMatches[1];
+        const { error: storageError } = await supabase.storage
+          .from('portfolio_images')
+          .remove([filePath]);
+          
+        if (storageError) console.error("Erro ao deletar arquivo no Storage:", storageError);
+      }
+
+      // 2. Deletar do banco de dados
       const { error } = await supabase
         .from('portfolio')
         .delete()
@@ -138,6 +177,19 @@ const PortfolioPage = () => {
     } catch (error) {
       console.error('Erro ao excluir item:', error);
     }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSelectedFile(file);
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setNewItem({ ...newItem, imageUrl: reader.result as string });
+    };
+    reader.readAsDataURL(file);
   };
 
   const filteredItems = selectedCategory === 'Todos' 
@@ -282,7 +334,7 @@ const PortfolioPage = () => {
                               <button 
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleDeleteItem(item.id);
+                                  handleDeleteItem(item.id, item.imageUrl);
                                 }}
                                 className="ml-auto p-2 bg-red-500/20 backdrop-blur-md rounded-xl hover:bg-red-500/40 transition-colors text-red-200"
                               >
@@ -436,22 +488,28 @@ const PortfolioPage = () => {
 
                   <div>
                     <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">
-                      URL da Imagem
+                      Imagem do Trabalho
                     </label>
                     <div className="relative">
                       <input
-                        type="url"
-                        required
-                        value={newItem.imageUrl}
-                        onChange={(e) => setNewItem({ ...newItem, imageUrl: e.target.value })}
-                        placeholder="https://exemplo.com/foto.jpg"
-                        className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-purple-500 transition-all font-medium pl-14"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        id="image-upload"
                       />
-                      <Upload className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                      <label 
+                        htmlFor="image-upload"
+                        className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl transition-all font-medium flex items-center justify-between cursor-pointer hover:bg-slate-100 hover:border-slate-200 group"
+                      >
+                        <span className="text-slate-500 truncate mr-4">
+                          {newItem.imageUrl ? 'Imagem carregada com sucesso!' : 'Procurar no dispositivo...'}
+                        </span>
+                        <div className="p-2.5 bg-purple-100 rounded-xl group-hover:bg-purple-200 transition-colors shadow-sm">
+                          <Paperclip className="w-5 h-5 text-purple-600" />
+                        </div>
+                      </label>
                     </div>
-                    <p className="mt-2 text-[10px] text-slate-400 ml-1">
-                      Dica: Você pode usar links de fotos do seu Instagram ou serviços de hospedagem.
-                    </p>
                   </div>
 
                   {newItem.imageUrl && (
