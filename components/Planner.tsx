@@ -59,6 +59,11 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   const [studioWhatsapp, setStudioWhatsapp] = useState<string | null>(null);
   const [pendingBooking, setPendingBooking] = useState<{ time: string, service: string } | null>(null);
 
+  // Estados do Checkout
+  const [checkoutData, setCheckoutData] = useState<Agendamento | null>(null);
+  const [checkoutDuration, setCheckoutDuration] = useState<string>('60'); 
+  const [checkoutPayment, setCheckoutPayment] = useState<string>('Pix');
+
   const isDayBlocked = agendamentos.some(a => a.time === 'ALL' && a.status === 'bloqueado');
   const dayBlockId = agendamentos.find(a => a.time === 'ALL' && a.status === 'bloqueado')?.id;
 
@@ -303,6 +308,31 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       fetchAgendamentos(currentDate);
     } catch (err: any) {
       alert('Erro ao atualizar status: ' + err.message);
+    }
+  };
+
+  const handleCheckoutSubmit = async () => {
+    if (!checkoutData) return;
+    try {
+      const { error } = await supabase.from('agendamentos').update({ 
+        status: 'concluido',
+        duration_minutes: parseInt(checkoutDuration),
+        payment_method: checkoutPayment
+      }).eq('id', checkoutData.id);
+      
+      if (error) {
+        if (error.message.includes('column')) {
+           alert('Opa! Você esqueceu de rodar o código no SQL Editor para adicionar os campos de pagamento no banco. Por favor, execute-os primeiro!');
+        } else {
+           throw error;
+        }
+        return;
+      }
+      
+      setCheckoutData(null);
+      fetchAgendamentos(currentDate);
+    } catch (err: any) {
+      alert('Erro ao concluir atendimento: ' + err.message);
     }
   };
 
@@ -612,7 +642,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                               ) : isOccupied ? (
                                 <div className={cn(
                                   "flex-1 flex items-center justify-between px-3 py-1 rounded-lg ml-2 mb-1",
-                                  age.status === 'concluido' ? 'bg-green-100 text-green-700' :
+                                  age.status === 'concluido' ? 'bg-[url("https://www.transparenttextures.com/patterns/diagonal-stripes.png")] bg-green-100 text-green-700 font-bold border border-green-200' :
                                   isMine || isAdminView ? 'bg-gradient-to-r from-rose-100 to-orange-100 text-rose-700 shadow-sm border border-rose-200' : 'bg-slate-100 text-slate-500 line-through'
                                 )}>
                                   {editingId === age.id ? (
@@ -658,7 +688,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                       {(isAdminView || isMine) && (
                                         <div className="flex items-center gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                           {isAdminView && age.status !== 'concluido' && (
-                                            <button onClick={() => handleStatusChange(age.id, 'concluido')} className="p-1 text-green-600 hover:bg-green-200 rounded" title="Confirmar Presença">
+                                            <button onClick={() => setCheckoutData(age)} className="p-1 text-green-600 hover:bg-green-200 rounded transition-colors" title="Finalizar Atendimento">
                                               <CheckCircle2 className="w-4 h-4" />
                                             </button>
                                           )}
@@ -756,6 +786,66 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
               className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3.5 rounded-xl transition-all flex justify-center items-center"
             >
               Cancelar Horário
+            </button>
+          </div>
+        </div>
+      )}
+
+      {checkoutData && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 relative border border-slate-100">
+            <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+              <CheckCircle2 className="w-6 h-6 text-green-500" />
+              Finalizar Atendimento
+            </h3>
+            
+            <div className="space-y-4 mb-8">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Forma de Pagamento</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {['Pix', 'Dinheiro', 'Crédito', 'Débito'].map(method => (
+                    <button
+                      key={method}
+                      onClick={() => setCheckoutPayment(method)}
+                      className={cn(
+                        "py-2 rounded-lg text-sm font-medium transition-all border",
+                        checkoutPayment === method ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                      )}
+                    >
+                      {method}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Tempo Gasto (Minutos)</label>
+                <select 
+                  value={checkoutDuration}
+                  onChange={(e) => setCheckoutDuration(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="30">30 Minutos (Rápido)</option>
+                  <option value="60">1 Hora (Padrão)</option>
+                  <option value="90">1 Hora e 30 Minutos</option>
+                  <option value="120">2 Horas (Completo)</option>
+                  <option value="150">2 Horas e 30 Minutos</option>
+                  <option value="180">3 Horas (Longo)</option>
+                </select>
+              </div>
+            </div>
+            
+            <button 
+              onClick={handleCheckoutSubmit}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-all flex justify-center items-center mb-3"
+            >
+              Salvar Recibo no Histórico
+            </button>
+            <button 
+              onClick={() => setCheckoutData(null)}
+              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-xl transition-all"
+            >
+              Voltar
             </button>
           </div>
         </div>

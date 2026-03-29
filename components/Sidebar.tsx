@@ -17,7 +17,8 @@ import {
   Tag,
   Paintbrush,
   Bell,
-  CalendarPlus
+  CalendarPlus,
+  CreditCard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -80,6 +81,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     { name: 'Contatos', icon: Users, href: '/contatos' },
     { name: 'Agenda', icon: CalendarDays, href: '/agenda' },
     { name: 'Agendamentos', icon: CalendarPlus, href: '/agendamentos' },
+    { name: 'Pagamentos', icon: CreditCard, href: '/pagamentos' },
     { name: 'Pipeline', icon: Kanban, href: '/pipeline' },
     { name: 'Histórico', icon: History, href: '/historico' },
   ];
@@ -87,7 +89,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const filteredNavItems = role === 'admin' 
     ? navItems 
     : navItems.filter(item => 
-        ['Meu Portfólio', 'Tabela de Preços', 'Agendamentos', 'Histórico'].includes(item.name)
+        ['Meu Portfólio', 'Tabela de Preços', 'Agendamentos', 'Pagamentos', 'Histórico'].includes(item.name)
       );
 
   const handleLogout = async () => {
