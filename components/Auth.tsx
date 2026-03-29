@@ -6,7 +6,9 @@ import { Paintbrush, Eye, EyeOff } from 'lucide-react';
 
 const Auth = () => {
   const [loading, setLoading] = useState(false);
+  const [loginId, setLoginId] = useState('');
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -56,13 +58,20 @@ const Auth = () => {
 
     try {
       if (isSignUp) {
+        if (!username.trim() || username.includes(' ')) {
+          setError('O nome de usuário não pode conter espaços.');
+          setLoading(false);
+          return;
+        }
+        
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
               full_name: fullName,
-              phone: phone
+              phone: phone,
+              username: username.toLowerCase()
             }
           }
         });
@@ -70,10 +79,8 @@ const Auth = () => {
         
         // Após criar o usuário, forçar o perfil como 'cliente'
         if (data.user) {
-          // Aguardar um pouco para o trigger criar o perfil
           await new Promise(resolve => setTimeout(resolve, 1000));
           
-          // Forçar atualização para cliente com os novos dados
           await supabase
             .from('profiles')
             .upsert({
@@ -81,14 +88,32 @@ const Auth = () => {
               email: data.user.email,
               full_name: fullName,
               phone: phone,
+              username: username.toLowerCase(),
               role: 'cliente'
             });
         }
         
         setSuccess('Conta criada com sucesso! Você já pode fazer login.');
+        setIsSignUp(false); // Switch to login screen natively
       } else {
+        let finalEmail = loginId;
+
+        if (!loginId.includes('@')) {
+          // Input não é e-mail. Vamos procurar qual e-mail está associado no banco
+          const { data: resolvedEmail, error: rpcError } = await supabase.rpc('get_email_by_identifier', { 
+            p_identifier: loginId 
+          });
+
+          if (rpcError || !resolvedEmail) {
+            setError('Celular ou Nome de Usuário não encontrado.');
+            setLoading(false);
+            return;
+          }
+          finalEmail = resolvedEmail;
+        }
+
         const { error } = await supabase.auth.signInWithPassword({
-          email,
+          email: finalEmail,
           password,
         });
         if (error) throw error;
@@ -114,7 +139,7 @@ const Auth = () => {
         </div>
 
         <form onSubmit={handleAuth} className="space-y-4">
-          {isSignUp && (
+          {isSignUp ? (
             <>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Nome Completo</label>
@@ -139,19 +164,42 @@ const Auth = () => {
                   maxLength={15}
                 />
               </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Nome de Usuário (@)</label>
+                <input 
+                  type="text"
+                  required
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                  placeholder="ex: maria123"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s/g, ''))}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">E-mail</label>
+                <input 
+                  type="email"
+                  required
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                  placeholder="seu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
             </>
+          ) : (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Celular, E-mail ou Usuário</label>
+              <input 
+                type="text"
+                required
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                placeholder="(11) 99999-9999, @usuario ou e-mail"
+                value={loginId}
+                onChange={(e) => setLoginId(e.target.value)}
+              />
+            </div>
           )}
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">E-mail</label>
-            <input 
-              type="email"
-              required
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
-              placeholder="seu@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Senha</label>
             <div className="relative">
