@@ -357,7 +357,7 @@ const UsuariosPage = () => {
         <Header onMenuClick={() => setIsSidebarOpen(true)} />
         
         <main className="flex-1 p-4 lg:p-8">
-          <div className="max-w-5xl mx-auto">
+          <div className="w-full">
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h1 className="text-2xl font-black text-slate-800 font-headline">
@@ -500,10 +500,10 @@ const UsuariosPage = () => {
                                 <button
                                   onClick={() => openPasswordModal(profile)}
                                   className="text-xs font-bold px-3 py-2 rounded-lg transition-all text-slate-600 hover:bg-slate-100 flex items-center gap-1"
-                                  title="Ver/Alterar Senha"
+                                  title="Redefinir Senha"
                                 >
                                   <Eye className="w-3.5 h-3.5" />
-                                  Ver Senha
+                                  Redefinir Senha
                                 </button>
                               )}
                               {currentUserRole === 'admin' && (
