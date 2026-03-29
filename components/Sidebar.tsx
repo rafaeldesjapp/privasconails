@@ -7,7 +7,7 @@ import {
   LayoutDashboard, 
   Users, 
   CalendarDays, 
-  Kanban, 
+  MessageCircle, 
   History, 
   Settings, 
   LogOut, 
@@ -82,14 +82,14 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     { name: 'Agenda', icon: CalendarDays, href: '/agenda' },
     { name: 'Agendamentos', icon: CalendarPlus, href: '/agendamentos' },
     { name: 'Pagamentos', icon: CreditCard, href: '/pagamentos' },
-    { name: 'Pipeline', icon: Kanban, href: '/pipeline' },
+    { name: 'Papo de Salão', icon: MessageCircle, href: '/papo-de-salao' },
     { name: 'Histórico', icon: History, href: '/historico' },
   ];
 
   const filteredNavItems = role === 'admin' 
     ? navItems 
     : navItems.filter(item => 
-        ['Meu Portfólio', 'Tabela de Preços', 'Agendamentos', 'Pagamentos', 'Histórico'].includes(item.name)
+        ['Meu Portfólio', 'Tabela de Preços', 'Agendamentos', 'Pagamentos', 'Papo de Salão', 'Histórico'].includes(item.name)
       );
 
   const handleLogout = async () => {
