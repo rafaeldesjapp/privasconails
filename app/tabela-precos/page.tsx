@@ -295,7 +295,7 @@ export default function TabelaPrecos() {
                       <input
                         value={cat.nome}
                         onChange={e => updateCatName(catIdx, e.target.value)}
-                        className="flex-1 bg-white/20 text-white placeholder-white/70 font-black text-lg rounded-lg px-3 py-1.5 outline-none border border-white/30 focus:border-white transition"
+                        className="flex-1 w-full bg-white/20 text-white placeholder-white/70 font-black text-base sm:text-lg rounded-lg px-3 py-2 outline-none border border-white/30 focus:border-white transition"
                       />
                     ) : (
                       <h2 className="text-lg font-black text-white tracking-wide uppercase">
@@ -318,34 +318,36 @@ export default function TabelaPrecos() {
                     {cat.itens.map((item, itemIdx) => (
                       <div
                         key={item.id}
-                        className="flex items-center justify-between px-6 py-4 hover:bg-rose-50/40 transition-colors group"
+                        className={`flex ${editMode ? 'flex-col sm:flex-row gap-3 items-start' : 'items-center'} sm:items-center justify-between px-4 sm:px-6 py-4 hover:bg-rose-50/40 transition-colors group relative`}
                       >
                         {editMode ? (
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1 w-full min-w-0">
                             <input
                               value={item.nome}
                               onChange={e => updateItemName(catIdx, itemIdx, e.target.value)}
-                              className="flex-1 text-sm text-slate-700 font-medium bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition"
+                              className="w-full sm:flex-1 text-base sm:text-sm text-slate-700 font-medium bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition"
                               placeholder="Nome do serviço"
                             />
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">R$</span>
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={item.preco}
-                                onChange={e => updateItemPrice(catIdx, itemIdx, e.target.value)}
-                                className="w-28 pl-9 pr-3 py-2 text-sm font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition"
-                              />
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                              <div className="relative flex-1 sm:flex-none">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">R$</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={item.preco}
+                                  onChange={e => updateItemPrice(catIdx, itemIdx, e.target.value)}
+                                  className="w-full sm:w-28 pl-9 pr-3 py-2.5 sm:py-2 text-base sm:text-sm font-bold text-rose-600 bg-rose-50 border border-slate-200 rounded-lg outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition"
+                                />
+                              </div>
+                              <button
+                                onClick={() => removeItem(catIdx, itemIdx)}
+                                className="p-2 sm:p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
+                                title="Remover item"
+                              >
+                                <Trash2 className="w-5 h-5 sm:w-4 sm:h-4" />
+                              </button>
                             </div>
-                            <button
-                              onClick={() => removeItem(catIdx, itemIdx)}
-                              className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"
-                              title="Remover item"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
                           </div>
                         ) : (
                           <>

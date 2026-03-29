@@ -189,12 +189,12 @@ const Auth = () => {
             </>
           ) : (
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Celular, E-mail ou Usuário</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">E-mail, Celular, Nome ou @Login</label>
               <input 
                 type="text"
                 required
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
-                placeholder="(11) 99999-9999, @usuario ou e-mail"
+                placeholder="E-mail, (11) 99999-9999, seu nome completo ou @usuario"
                 value={loginId}
                 onChange={(e) => setLoginId(e.target.value)}
               />

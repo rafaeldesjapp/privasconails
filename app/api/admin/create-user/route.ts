@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { email, password, fullName, phone, role } = await req.json();
+    const { email, password, fullName, phone, role, username } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email e senha são obrigatórios' }, { status: 400 });
@@ -32,7 +32,8 @@ export async function POST(req: Request) {
       email_confirm: true,
       user_metadata: {
         full_name: fullName,
-        phone: phone
+        phone: phone,
+        username: username?.toLowerCase()
       }
     });
 
@@ -50,6 +51,7 @@ export async function POST(req: Request) {
         email: email,
         full_name: fullName,
         phone: phone,
+        username: username?.toLowerCase(),
         role: role || 'cliente'
       });
 

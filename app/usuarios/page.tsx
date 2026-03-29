@@ -14,7 +14,7 @@ import Link from 'next/link';
 const UsuariosPage = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { user, role: currentUserRole, loading: authLoading } = useSupabaseAuth();
-  const { data: profiles, loading: profilesLoading, error } = useSupabaseQuery<any[]>('profiles');
+  const { data: profiles, loading: profilesLoading, error } = useSupabaseQuery<any[]>('profiles', [user?.id]);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [localProfiles, setLocalProfiles] = useState<any[]>([]);
   
@@ -30,9 +30,11 @@ const UsuariosPage = () => {
 
   // Estados para edição de email e celular
   const [showNameModal, setShowNameModal] = useState(false);
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [editName, setEditName] = useState('');
+  const [editUsername, setEditUsername] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [updatingField, setUpdatingField] = useState(false);
@@ -40,6 +42,7 @@ const UsuariosPage = () => {
   // Estados para criação de novo usuário
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newUsername, setNewUsername] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newPasswordValue, setNewPasswordValue] = useState('');
@@ -159,6 +162,12 @@ const UsuariosPage = () => {
     setShowNameModal(true);
   };
 
+  const openUsernameModal = (profile: any) => {
+    setSelectedUser(profile);
+    setEditUsername(profile.username || '');
+    setShowUsernameModal(true);
+  };
+
   const openEmailModal = (profile: any) => {
     setSelectedUser(profile);
     setEditEmail(profile.email || '');
@@ -180,7 +189,7 @@ const UsuariosPage = () => {
   };
 
   const handleCreateUser = async () => {
-    if (!newName.trim() || !newEmail.trim() || !newPasswordValue.trim()) {
+    if (!newName.trim() || !newEmail.trim() || !newPasswordValue.trim() || !newUsername.trim()) {
       alert('Preencha todos os campos obrigatórios.');
       return;
     }
@@ -199,6 +208,7 @@ const UsuariosPage = () => {
           fullName: newName.trim(),
           phone: newPhone.trim(),
           email: newEmail.trim(),
+          username: newUsername.trim().toLowerCase().replace(/\s/g, ''),
           password: newPasswordValue.trim(),
           role: 'cliente'
         })
@@ -218,6 +228,7 @@ const UsuariosPage = () => {
 
       setShowCreateModal(false);
       setNewName('');
+      setNewUsername('');
       setNewEmail('');
       setNewPhone('');
       setNewPasswordValue('');
@@ -230,7 +241,7 @@ const UsuariosPage = () => {
     }
   };
 
-  const handleUpdateUser = async (data: { email?: string; phone?: string; fullName?: string }) => {
+  const handleUpdateUser = async (data: { email?: string; phone?: string; fullName?: string; username?: string }) => {
     setUpdatingField(true);
     try {
       if (currentUserRole === 'admin') {
@@ -239,6 +250,7 @@ const UsuariosPage = () => {
         if (data.email) cleanData.email = data.email.trim();
         if (data.phone !== undefined) cleanData.phone = data.phone.trim();
         if (data.fullName !== undefined) cleanData.fullName = data.fullName.trim();
+        if (data.username !== undefined) cleanData.username = data.username.trim().toLowerCase().replace(/\s/g, '');
 
         const response = await fetch('/api/admin/update-user', {
           method: 'POST',
@@ -256,6 +268,7 @@ const UsuariosPage = () => {
             if (data.email) updated.email = data.email;
             if (data.phone !== undefined) updated.phone = data.phone;
             if (data.fullName !== undefined) updated.full_name = data.fullName;
+            if (data.username !== undefined) updated.username = data.username;
             return updated;
           }
           return p;
@@ -276,6 +289,7 @@ const UsuariosPage = () => {
       }
 
       setShowNameModal(false);
+      setShowUsernameModal(false);
       setShowEmailModal(false);
       setShowPhoneModal(false);
     } catch (err: any) {
@@ -386,6 +400,7 @@ const UsuariosPage = () => {
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100">
                         <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Usuário (Nome)</th>
+                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Login (@)</th>
                         <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Email</th>
                         <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Celular</th>
                         <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Nível de Acesso</th>
@@ -417,6 +432,22 @@ const UsuariosPage = () => {
                                   </button>
                                 )}
                               </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-slate-600">
+                                {profile.username ? `@${profile.username}` : '---'}
+                              </span>
+                              {(currentUserRole === 'admin' || profile.id === user?.id) && (
+                                <button
+                                  onClick={() => openUsernameModal(profile)}
+                                  className="p-1.5 hover:bg-blue-50 rounded-lg text-slate-400 hover:text-blue-600 transition-all"
+                                  title="Editar Login (@)"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -634,6 +665,54 @@ const UsuariosPage = () => {
         </div>
       )}
 
+      {/* Modal de Alterar Usuário (@) */}
+      {showUsernameModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 bg-blue-100 rounded-xl">
+                <UserIcon className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-slate-800">Editar Login (@)</h2>
+                <p className="text-sm text-slate-500">Atualize o nome de usuário (@) para login.</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Nome de Usuário (@)
+                </label>
+                <input
+                  type="text"
+                  value={editUsername}
+                  onChange={(e) => setEditUsername(e.target.value.toLowerCase().replace(/\s/g, ''))}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  placeholder="ex: maria123"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowUsernameModal(false)}
+                className="flex-1 py-3 px-4 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleUpdateUser({ username: editUsername })}
+                disabled={updatingField || !editUsername}
+                className="flex-1 py-3 px-4 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {updatingField ? 'Salvando...' : 'Salvar Login'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Alterar Email */}
       {showEmailModal && selectedUser && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -754,6 +833,16 @@ const UsuariosPage = () => {
                   onChange={(e) => setNewName(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                   placeholder="Nome do usuário"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nome de Usuário (@)</label>
+                <input
+                  type="text"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value.toLowerCase().replace(/\s/g, ''))}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  placeholder="ex: maria123"
                 />
               </div>
               <div>
