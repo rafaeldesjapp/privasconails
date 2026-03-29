@@ -55,10 +55,10 @@ export default function PapoDeSalaoPage() {
     // Inscrição para novas mensagens (Realtime)
     const channel = supabase
       .channel('chat_room')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_mensagens' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_mensagens' }, (payload: any) => {
         fetchNewMessageData(payload.new as ChatMessage);
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_mensagens' }, (payload) => {
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_mensagens' }, (payload: any) => {
         setMessages(prev => prev.filter(msg => msg.id !== payload.old.id));
       })
       .subscribe();
@@ -72,16 +72,17 @@ export default function PapoDeSalaoPage() {
         const state = presenceChannel.presenceState();
         const currentlyTyping: any = {};
         for (const [key, presences] of Object.entries(state)) {
-          if (key !== user.id && presences.length > 0 && (presences[0] as any).isTyping) {
+          const pList = presences as any[];
+          if (key !== user.id && pList.length > 0 && pList[0].isTyping) {
             currentlyTyping[key] = {
-              name: (presences[0] as any).name,
-              avatar: (presences[0] as any).avatar
+              name: pList[0].name,
+              avatar: pList[0].avatar
             };
           }
         }
         setTypingUsers(currentlyTyping);
       })
-      .subscribe(async (status) => {
+      .subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
           await presenceChannel.track({
             name: user?.user_metadata?.full_name || 'Alguém',
