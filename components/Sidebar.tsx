@@ -152,14 +152,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
         })}
       </nav>
 
-      {role === 'admin' && (
-        <div className="p-4 bg-slate-100/30">
-          <button className="w-full py-3 px-4 bg-gradient-to-br from-[#003d9b] to-[#0052cc] text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10 hover:scale-[1.02] active:scale-[0.98] transition-all text-sm">
-            <Plus className="w-4 h-4" />
-            Novo Negócio
-          </button>
-        </div>
-      )}
+
 
       <div className="p-4 border-t border-slate-100 space-y-1">
         <Link 
