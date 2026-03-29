@@ -306,13 +306,13 @@ export default function PapoDeSalaoPage() {
         <main className="flex-1 flex flex-col min-h-0 relative shadow-inner overflow-hidden">
           
           {/* Fundo Original do WhatsApp Light (Clone perfeito) */}
-          <div className="absolute inset-0 bg-[#efeae2] z-[-2]"></div>
+          <div className="absolute inset-0 bg-[#efeae2] z-0 pointer-events-none"></div>
           <div 
-            className="absolute inset-0 opacity-[0.25] pointer-events-none z-[-1]" 
+            className="absolute inset-0 z-0 pointer-events-none opacity-70 mix-blend-multiply" 
             style={{ 
-              backgroundImage: 'url("https://web.whatsapp.com/img/bg-chat-tile-light_686b98c9fdffcf36c5646fdd25157ba1.png")',
+              backgroundImage: 'url("/bg-whatsapp.png")',
               backgroundRepeat: 'repeat',
-              backgroundSize: '400px'
+              backgroundSize: '400px',
             }} 
           />
           
