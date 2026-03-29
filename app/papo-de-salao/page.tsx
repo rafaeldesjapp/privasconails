@@ -126,23 +126,34 @@ export default function PapoDeSalaoPage() {
     try {
       const { data, error } = await supabase
         .from('chat_mensagens')
-        .select(`
-          id, user_id, texto, media_url, media_type, created_at,
-          profiles:user_id ( full_name, avatar_url )
-        `)
+        .select(`id, user_id, texto, media_url, media_type, created_at`)
         .order('created_at', { ascending: true })
         .limit(200);
 
       if (error) {
         if (error.code === '42P01') {
           console.warn("Aviso: Tabela 'chat_mensagens' ainda não existe no banco.");
-        } else if (error.message.includes('media_url')) {
-          console.warn("Aviso: Colunas de mídia não criadas ainda.");
         } else {
           console.error(error);
         }
+      } else if (data && data.length > 0) {
+        // Busca os perfis de forma separada e inquebrável (Sem erro de Foreign Key)
+        const uniqueUserIds = Array.from(new Set(data.map(m => m.user_id)));
+        const { data: profilesParams } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url')
+          .in('id', uniqueUserIds);
+
+        const mappedMessages = data.map(msg => {
+           const match = profilesParams?.find(p => p.id === msg.user_id);
+           return {
+             ...msg,
+             profiles: { full_name: match?.full_name || 'Usuário', avatar_url: match?.avatar_url || null }
+           };
+        });
+        setMessages(mappedMessages as any[]);
       } else {
-        setMessages(data || []);
+        setMessages([]);
       }
     } catch (err) {
       console.error(err);
