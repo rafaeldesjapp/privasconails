@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, CheckCircle2, Clock, Plus, Trash2, Calendar as CalIcon, Lock, Unlock, AlertOctagon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle2, Clock, Plus, Trash2, Calendar as CalIcon, Lock, Unlock, AlertOctagon, Pencil, Save, X, GripVertical } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { format, addDays, subDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getMonth, getYear } from 'date-fns';
@@ -24,7 +24,6 @@ interface PlannerProps {
   isAdminView?: boolean;
 }
 
-// Função para gerar horários de 15 em 15 minutos
 const generateTimeSlots = (startHour: number, endHour: number) => {
   const slots: string[] = [];
   for (let h = startHour; h <= endHour; h++) {
@@ -46,8 +45,15 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [newService, setNewService] = useState('');
   
-  // Novo estado para controlar os dias bloqueados no mês atual
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editServiceText, setEditServiceText] = useState('');
+  
   const [blockedDays, setBlockedDays] = useState<{id: string, date: string}[]>([]);
+
+  // Estados do Drag-to-Fill
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragSource, setDragSource] = useState<Agendamento | null>(null);
+  const [dragCurrentTime, setDragCurrentTime] = useState<string | null>(null);
 
   const isDayBlocked = agendamentos.some(a => a.time === 'ALL' && a.status === 'bloqueado');
   const dayBlockId = agendamentos.find(a => a.time === 'ALL' && a.status === 'bloqueado')?.id;
@@ -85,14 +91,13 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
     }
   };
 
-  // Carrega agendamentos diários
   useEffect(() => {
     fetchAgendamentos(currentDate);
     const channel = supabase
       .channel('agendamentos-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agendamentos' }, () => {
         fetchAgendamentos(currentDate);
-        fetchBlockedDays(currentDate); // atualiza o grid do mês se houver mudança
+        fetchBlockedDays(currentDate); 
       })
       .subscribe();
 
@@ -101,10 +106,65 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
     };
   }, [currentDate]);
 
-  // Carrega os bloqueios do mês apenas quando o mês/ano mudar
   useEffect(() => {
     fetchBlockedDays(currentDate);
   }, [getMonth(currentDate), getYear(currentDate)]);
+
+  // Listener Global para o fim do Arrasto (Drag-to-Fill)
+  useEffect(() => {
+    const handleMouseUp = async () => {
+      if (isDragging && dragSource && dragCurrentTime) {
+        const sIdx = fullDayTimeSlots.indexOf(dragSource.time);
+        const cIdx = fullDayTimeSlots.indexOf(dragCurrentTime);
+        
+        if (sIdx !== -1 && cIdx !== -1 && sIdx !== cIdx) {
+          const start = Math.min(sIdx, cIdx);
+          const end = Math.max(sIdx, cIdx);
+          const times = fullDayTimeSlots.slice(start, end + 1);
+
+          // Pular ocupados e a própria origem (filtro anti-sobrescrita)
+          const targetTimes = times.filter(t => 
+            t !== dragSource.time && !agendamentos.some(a => a.time === t)
+          );
+
+          if (targetTimes.length > 0) {
+            try {
+              const novosAgendamentos = targetTimes.map(t => ({
+                user_id: dragSource.user_id,
+                client_name: dragSource.client_name,
+                service: dragSource.service,
+                date: dragSource.date,
+                time: t,
+                status: dragSource.status
+              }));
+
+              const { error } = await supabase.from('agendamentos').insert(novosAgendamentos);
+              if (error) throw error;
+              
+              fetchAgendamentos(currentDate);
+              fetchBlockedDays(currentDate);
+            } catch (err: any) {
+              alert('Erro ao colar blocos arrastados: ' + err.message);
+            }
+          }
+        }
+      }
+      setIsDragging(false);
+      setDragSource(null);
+      setDragCurrentTime(null);
+    };
+
+    if (isDragging) {
+      window.addEventListener('mouseup', handleMouseUp);
+      // Fallback para mobile
+      window.addEventListener('touchend', handleMouseUp);
+    }
+    
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchend', handleMouseUp);
+    };
+  }, [isDragging, dragSource, dragCurrentTime, agendamentos, currentDate]);
 
   const handleNextDay = () => {
     setDirection(1);
@@ -183,10 +243,14 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   };
 
   const handleCancel = async (id: string, silently: boolean = false, isExternalAction = false) => {
-    if (!silently && !confirm('Deseja realmente cancelar este agendamento/bloqueio?')) return;
     try {
-      const { error } = await supabase.from('agendamentos').delete().eq('id', id);
+      const { data, error } = await supabase.from('agendamentos').delete().eq('id', id).select();
       if (error) throw error;
+      
+      if (!silently && (!data || data.length === 0)) {
+        alert(`O banco de dados bloqueou a exclusão do agendamento. Você pode não ter permissão de administrador no nível do banco (RLS).`);
+        return;
+      }
       
       fetchAgendamentos(currentDate);
       fetchBlockedDays(currentDate);
@@ -203,6 +267,18 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       fetchAgendamentos(currentDate);
     } catch (err: any) {
       alert('Erro ao atualizar status: ' + err.message);
+    }
+  };
+
+  const handleEditSave = async (id: string) => {
+    if (!editServiceText.trim()) return;
+    try {
+      const { error } = await supabase.from('agendamentos').update({ service: editServiceText }).eq('id', id);
+      if (error) throw error;
+      setEditingId(null);
+      fetchAgendamentos(currentDate);
+    } catch (err: any) {
+      alert('Erro ao editar: ' + err.message);
     }
   };
 
@@ -248,7 +324,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
     <div className="min-h-screen bg-gradient-to-br from-pink-400 via-orange-300 to-yellow-300 p-4 md:p-8 flex items-center justify-center font-sans">
       
       {/* Container do Caderno */}
-      <div className="relative w-full max-w-6xl aspect-[4/3] max-h-[90vh] flex shadow-2xl rounded-2xl md:rounded-3xl overflow-hidden bg-pink-100 ring-8 ring-white/20 perspective-[2000px]">
+      <div className="relative w-full max-w-6xl h-[85vh] md:h-auto md:aspect-[4/3] md:max-h-[90vh] flex shadow-2xl rounded-xl md:rounded-3xl overflow-hidden bg-pink-100 ring-4 md:ring-8 ring-white/20 perspective-[2000px] select-none">
         
         <div className="absolute inset-0 bg-white/40 mix-blend-overlay pointer-events-none z-0" style={{ backgroundImage: 'radial-gradient(rgba(255, 255, 255, 0.5) 2px, transparent 2px)', backgroundSize: '24px 24px' }} />
 
@@ -312,10 +388,9 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                       )}
                     </button>
 
-                    {/* Botão flutuante de bloquear no grid do calendário (Apenas Admin) */}
                     {isAdminView && (
                       <div className="absolute top-[-10px] right-[-10px] z-50 opacity-0 group-hover:opacity-100 transition-opacity">
-                         {isThisDayBlocked ? (
+                         {isThisDayBlocked && blockRecord ? (
                            <button 
                              onClick={(e) => { e.stopPropagation(); handleCancel(blockRecord.id, true, true); }} 
                              className="bg-white rounded-full p-1 shadow-md border border-slate-200 text-red-500 hover:text-slate-700"
@@ -340,9 +415,9 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
             </div>
 
             <div className="mt-auto bg-orange-50/50 rounded-2xl p-6 border border-orange-100 border-dashed">
-              <h3 className="font-bold text-slate-800 mb-2">Deslize para ver horários</h3>
+              <h3 className="font-bold text-slate-800 mb-2">Dica de Produtividade</h3>
               <p className="text-sm text-slate-600">
-                A página da direita possui horários de 15 em 15 minutos, das 7h até as 23h. Use o mouse ou o dedo para rolar a página verticalmente!
+                Pressione a bolinha <GripVertical className="inline w-4 h-4 text-slate-400" /> ao lado de qualquer compromisso ou bloqueio e arraste para os horários vizinhos para multiplicar sua ação imediatamente!
               </p>
             </div>
           </div>
@@ -366,7 +441,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
               initial="enter"
               animate="center"
               exit="exit"
-              className="absolute inset-0 p-6 md:p-8 pt-12 overflow-y-auto"
+              className="absolute inset-0 p-4 md:p-8 pt-8 md:pt-12 overflow-y-auto"
               style={{ transformOrigin: 'left center' }}
             >
               
@@ -377,11 +452,11 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                 <div className="flex items-center justify-between mb-8 border-b-2 border-red-400/30 pb-4">
                   <div className="group flex items-start gap-3">
                     <div>
-                      <h1 className="text-4xl font-black text-rose-500 uppercase tracking-tighter">
+                      <h1 className="text-3xl md:text-4xl font-black text-rose-500 uppercase tracking-tighter">
                         {format(currentDate, "EEEE", { locale: ptBR })}
                       </h1>
                       <div className="flex items-center gap-2">
-                        <p className="text-lg font-bold text-slate-500">
+                        <p className="text-base md:text-lg font-bold text-slate-500">
                           {format(currentDate, "dd 'de' MMMM", { locale: ptBR })}
                         </p>
                         {isAdminView && (
@@ -396,7 +471,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                           ) : (
                             <button 
                               onClick={() => handleBlockFullDay(currentDate)} 
-                              className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all"
+                              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all"
                               title="Bloquear o Dia Todo"
                             >
                               <Lock className="w-4 h-4" />
@@ -436,18 +511,64 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                         const isMine = age?.user_id === user?.id;
                         const isSelected = selectedSlot === time;
 
+                        // Drag logic visual tracking
+                        const isPreview = isDragging && dragSource && dragCurrentTime && (() => {
+                          const tIdx = fullDayTimeSlots.indexOf(time);
+                          const sIdx = fullDayTimeSlots.indexOf(dragSource.time);
+                          const cIdx = fullDayTimeSlots.indexOf(dragCurrentTime);
+                          return tIdx >= Math.min(sIdx, cIdx) && tIdx <= Math.max(sIdx, cIdx);
+                        })();
+
+                        const showPreviewGhost = isPreview && !age; // Only preview on empty ones
+
                         return (
-                          <div key={time} className="group relative min-h-[40px] flex items-center gap-4 transition-all hover:bg-white/50 -mx-4 px-4 rounded-lg">
-                            <div className="w-16 flex-shrink-0 text-right font-medium text-rose-400/80 group-hover:text-rose-600 group-hover:font-bold transition-all pt-1">
+                          <div 
+                            key={time} 
+                            className="group relative min-h-[40px] flex items-center gap-2 md:gap-4 transition-all hover:bg-white/50 -mx-2 md:-mx-4 px-2 md:px-4 rounded-lg"
+                            onMouseEnter={() => {
+                              if (isDragging && isAdminView) setDragCurrentTime(time);
+                            }}
+                            // Captura touchmove no mobile
+                            onTouchMove={(e) => {
+                              if (!isDragging || !isAdminView) return;
+                              // Identifica o elemento sobre o qual o dedo está
+                              const touch = e.touches[0];
+                              const el = document.elementFromPoint(touch.clientX, touch.clientY);
+                              const targetTime = el?.getAttribute('data-time');
+                              if (targetTime) setDragCurrentTime(targetTime);
+                            }}
+                            data-time={time}
+                          >
+                            <div className="w-12 md:w-16 flex-shrink-0 text-right font-medium text-rose-400/80 group-hover:text-rose-600 group-hover:font-bold transition-all pt-1 text-xs md:text-base">
                               {time}
                             </div>
                             
                             <div className="flex-1 min-h-[40px] border-b border-rose-100/50 group-hover:border-rose-300 transition-colors flex items-center pr-2">
+                              {/* Fantasma do Drag */}
+                              {showPreviewGhost && (
+                                <div className="flex-1 flex items-center px-3 py-1 rounded-lg ml-2 mb-1 bg-rose-50 border-2 border-rose-300 border-dashed text-rose-400 opacity-60">
+                                  <span className="font-bold text-sm italic">
+                                    {(dragSource?.status === 'bloqueado') ? 'Bloqueando espaço...' : 'Pintando '+dragSource?.service}
+                                  </span>
+                                </div>
+                              )}
+
                               {isBlockedSlot ? (
                                 <div className="flex-1 flex items-center justify-between ml-2 bg-slate-50 text-slate-400 opacity-60 px-2 py-0.5 rounded italic">
-                                  <span className="text-sm flex items-center gap-1"><AlertOctagon className="w-3 h-3"/> Bloqueado</span>
+                                  <div className="flex items-center gap-1">
+                                    {isAdminView && (
+                                      <div 
+                                        className="cursor-grab active:cursor-grabbing p-1 text-slate-300 hover:text-slate-500"
+                                        onMouseDown={() => { setIsDragging(true); setDragSource(age); setDragCurrentTime(time); }}
+                                        onTouchStart={() => { setIsDragging(true); setDragSource(age); setDragCurrentTime(time); }}
+                                      >
+                                        <GripVertical className="w-3.5 h-3.5" />
+                                      </div>
+                                    )}
+                                    <span className="text-sm flex items-center gap-1"><AlertOctagon className="w-3 h-3"/> Bloqueado</span>
+                                  </div>
                                   {isAdminView && age && (
-                                    <button onClick={() => handleCancel(age.id, true)} className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-slate-800 transition-all">
+                                    <button onClick={() => handleCancel(age.id, true)} className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 text-slate-500 hover:text-slate-800 transition-all">
                                       <Unlock className="w-3.5 h-3.5" />
                                     </button>
                                   )}
@@ -458,23 +579,67 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                   age.status === 'concluido' ? 'bg-green-100 text-green-700' :
                                   isMine || isAdminView ? 'bg-gradient-to-r from-rose-100 to-orange-100 text-rose-700 shadow-sm border border-rose-200' : 'bg-slate-100 text-slate-500 line-through'
                                 )}>
-                                  <span className="font-medium text-sm">
-                                    {isAdminView || isMine ? `${age.client_name} - ${age.service}` : 'Agendado'}
-                                  </span>
-                                  {(isAdminView || isMine) && age.status === 'agendado' && (
-                                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      {isAdminView && (
-                                        <button onClick={() => handleStatusChange(age.id, 'concluido')} className="p-1 text-green-600 hover:bg-green-200 rounded">
-                                          <CheckCircle2 className="w-4 h-4" />
-                                        </button>
-                                      )}
-                                      <button onClick={() => handleCancel(age.id)} className="p-1 text-red-500 hover:bg-red-200 rounded">
-                                        <Trash2 className="w-4 h-4" />
+                                  {editingId === age.id ? (
+                                    <div className="flex-1 flex items-center gap-2 mr-2">
+                                      <input 
+                                        type="text" 
+                                        className="flex-1 bg-white/60 px-2 py-0.5 rounded outline-none text-sm text-slate-800"
+                                        value={editServiceText}
+                                        onChange={(e) => setEditServiceText(e.target.value)}
+                                        autoFocus
+                                      />
+                                      <button onClick={() => handleEditSave(age.id)} className="p-1 text-blue-600 hover:bg-blue-100 rounded bg-white shadow-sm" title="Salvar">
+                                        <Save className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button onClick={() => setEditingId(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded bg-white shadow-sm" title="Cancelar">
+                                        <X className="w-3.5 h-3.5" />
                                       </button>
                                     </div>
+                                  ) : (
+                                    <>
+                                      <div className="flex items-center gap-1">
+                                        {isAdminView && (
+                                          <div 
+                                            className="cursor-grab active:cursor-grabbing p-1 -ml-2 text-rose-300 hover:text-rose-500 opacity-60 hover:opacity-100 hover:scale-110 transition-all"
+                                            onMouseDown={() => { setIsDragging(true); setDragSource(age); setDragCurrentTime(time); }}
+                                            onTouchStart={(e) => { 
+                                              // Impede o scroll no celular ao arrastar a alça
+                                              document.body.style.overflow = 'hidden';
+                                              setIsDragging(true); 
+                                              setDragSource(age); 
+                                              setDragCurrentTime(time); 
+                                            }}
+                                            onTouchEnd={() => { document.body.style.overflow = ''; }}
+                                          >
+                                            <GripVertical className="w-4 h-4" />
+                                          </div>
+                                        )}
+                                        <span className="font-medium text-sm">
+                                          {isAdminView || isMine ? `${age.client_name} - ${age.service}` : 'Agendado'}
+                                        </span>
+                                      </div>
+
+                                      {(isAdminView || isMine) && (
+                                        <div className="flex items-center gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                          {isAdminView && age.status !== 'concluido' && (
+                                            <button onClick={() => handleStatusChange(age.id, 'concluido')} className="p-1 text-green-600 hover:bg-green-200 rounded" title="Confirmar Presença">
+                                              <CheckCircle2 className="w-4 h-4" />
+                                            </button>
+                                          )}
+                                          {(isAdminView || isMine) && (
+                                            <button onClick={() => { setEditingId(age.id); setEditServiceText(age.service); }} className="p-1 text-blue-500 hover:bg-blue-200 rounded" title="Editar Serviço">
+                                              <Pencil className="w-4 h-4" />
+                                            </button>
+                                          )}
+                                          <button onClick={() => handleCancel(age.id)} className="p-1 text-red-500 hover:bg-red-200 rounded" title="Cancelar Agendamento">
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      )}
+                                    </>
                                   )}
                                 </div>
-                              ) : (
+                              ) : !showPreviewGhost && (
                                 <div className="flex-1 flex items-center justify-between">
                                   {isSelected ? (
                                     <div className="flex-1 flex items-center gap-2 ml-2 mb-1 bg-white p-1 rounded-lg shadow-sm border border-rose-200 z-20 relative">
@@ -499,17 +664,17 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                   ) : (
                                     <button 
                                       onClick={() => setSelectedSlot(time)}
-                                      className="flex items-center gap-2 text-slate-300 hover:text-rose-500 text-sm font-medium ml-2 opacity-0 group-hover:opacity-100 transition-all z-20 relative"
+                                      className="flex items-center gap-1 md:gap-2 text-rose-400 md:text-slate-300 hover:text-rose-500 text-sm font-medium ml-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all z-20 relative"
                                     >
                                       <Plus className="w-4 h-4" />
-                                      <span className="text-xs">Agendar</span>
+                                      <span className="text-xs hidden md:inline">Agendar</span>
                                     </button>
                                   )}
 
                                   {isAdminView && !isSelected && (
                                     <button 
                                       onClick={() => handleBlockSlot(time)}
-                                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all ml-auto"
+                                      className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all ml-auto"
                                       title="Bloquear Horário"
                                     >
                                       <Lock className="w-3.5 h-3.5" />
