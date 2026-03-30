@@ -138,58 +138,58 @@ export default function MeuPainel() {
       <div className="lg:ml-64 flex flex-col min-h-screen">
         <Header onMenuClick={() => setIsSidebarOpen(true)} />
         
-        <main className="flex-1 p-4 lg:p-8">
-          <div className="max-w-7xl mx-auto space-y-8">
+        <main className="flex-1 p-3 sm:p-4 lg:p-8">
+          <div className="max-w-7xl mx-auto space-y-6 lg:space-y-8">
             {/* Boas-vindas */}
             <div>
-              <h1 className="text-3xl font-black text-slate-800 font-headline">
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-800 font-headline">
                 {role === 'admin' ? 'Olá, Priscila!' : `Olá, ${user.user_metadata?.full_name?.split(' ')[0] || 'Cliente'}!`}
               </h1>
-              <p className="text-slate-500">Aqui está o resumo do seu estúdio em tempo real.</p>
+              <p className="text-sm sm:text-base text-slate-500">Aqui está o resumo do seu estúdio em tempo real.</p>
             </div>
 
             {/* Stats Grid */}
             <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${cardsParaExibir.length} gap-4`}>
               {cardsParaExibir.map((stat) => (
-                <div key={stat.name} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
+                <div key={stat.name} className="bg-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
                   {loadingDados && (
                     <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center">
                       <div className="animate-spin w-5 h-5 border-2 border-slate-300 border-t-blue-500 rounded-full"></div>
                     </div>
                   )}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`p-2 rounded-lg ${stat.bg}`}>
-                      <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                  <div className="flex items-center justify-between mb-3 sm:mb-4">
+                    <div className={`p-1.5 sm:p-2 rounded-lg ${stat.bg}`}>
+                      <stat.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${stat.color}`} />
                     </div>
                   </div>
-                  <p className="text-sm font-medium text-slate-500 mb-1">{stat.name}</p>
-                  <p className="text-2xl font-black text-slate-800">{stat.value}</p>
+                  <p className="text-xs sm:text-sm font-medium text-slate-500 mb-0.5 sm:mb-1">{stat.name}</p>
+                  <p className="text-xl sm:text-2xl font-black text-slate-800">{stat.value}</p>
                 </div>
               ))}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Próximos Agendamentos */}
-              <div className="lg:col-span-2 space-y-4">
+              <div className="lg:col-span-2 space-y-3 sm:space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-black text-slate-800 font-headline">Próximos Agendamentos</h2>
+                  <h2 className="text-lg sm:text-xl font-black text-slate-800 font-headline">Próximos Agendamentos</h2>
                 </div>
                 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden relative min-h-[150px]">
+                <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-100 overflow-hidden relative min-h-[120px] sm:min-h-[150px]">
                   {loadingDados && (
                     <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center">
-                       <span className="text-sm text-slate-500 font-medium animate-pulse">Carregando dados...</span>
+                       <span className="text-xs sm:text-sm text-slate-500 font-medium animate-pulse">Carregando dados...</span>
                     </div>
                   )}
                   {proximosAgendamentos.length === 0 && !loadingDados && (
-                    <div className="p-8 text-center text-slate-400 font-medium">
+                    <div className="p-6 sm:p-8 text-center text-sm sm:text-base text-slate-400 font-medium">
                       Nenhum agendamento futuro encontrado.
                     </div>
                   )}
                   {proximosAgendamentos.map((agend) => {
                     const dataObj = parseISO(agend.date);
                     return (
-                      <div key={agend.id} className="p-4 flex items-center justify-between border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                      <div key={agend.id} className="p-3 sm:p-4 flex items-center justify-between border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-12 rounded-xl bg-slate-100 flex flex-col items-center justify-center text-slate-500 min-w-[3rem]">
                             <span className="text-[10px] font-bold uppercase leading-none">{format(dataObj, 'MMM', { locale: ptBR })}</span>
@@ -218,21 +218,21 @@ export default function MeuPainel() {
               </div>
 
               {/* Atividades Recentes */}
-              <div className="space-y-4">
-                <h2 className="text-xl font-black text-slate-800 font-headline">Atividades Recentes</h2>
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-6 relative min-h-[150px]">
+              <div className="space-y-3 sm:space-y-4">
+                <h2 className="text-lg sm:text-xl font-black text-slate-800 font-headline">Atividades Recentes</h2>
+                <div className="bg-white p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm border border-slate-100 space-y-4 sm:space-y-6 relative min-h-[120px] sm:min-h-[150px]">
                   {loadingDados && (
                     <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center"></div>
                   )}
                   {atividadesRecentes.length === 0 && !loadingDados && (
-                    <div className="text-center text-slate-400 font-medium py-4 text-sm">
+                    <div className="text-center text-slate-400 font-medium py-3 sm:py-4 text-xs sm:text-sm">
                       Nenhuma atividade recente.
                     </div>
                   )}
                   {atividadesRecentes.map((atividade) => {
                      const isNovo = atividade.status === 'agendado';
                      return (
-                      <div key={atividade.id} className="flex gap-3">
+                      <div key={atividade.id} className="flex gap-2.5 sm:gap-3">
                         <div className={`mt-1 p-1 rounded-full w-fit h-fit ${isNovo ? 'bg-blue-50' : (atividade.status === 'concluido' ? 'bg-green-50' : 'bg-red-50')}`}>
                           {isNovo ? <AlertCircle className="w-4 h-4 text-blue-600" /> : <CheckCircle2 className={`w-4 h-4 ${atividade.status === 'concluido' ? 'text-green-600' : 'text-red-600'}`} />}
                         </div>
