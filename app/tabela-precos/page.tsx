@@ -92,8 +92,8 @@ export default function TabelaPrecos() {
       const { data, error } = await supabase
         .from('configuracoes')
         .select('valor')
-        .eq('chave', 'tabela_precos')
-        .single();
+        .eq('id', 'tabela_precos')
+        .maybeSingle();
 
       if (!error && data?.valor) {
         setCategories(data.valor);
@@ -124,7 +124,7 @@ export default function TabelaPrecos() {
     try {
       const { error } = await supabase
         .from('configuracoes')
-        .upsert({ chave: 'tabela_precos', valor: draft }, { onConflict: 'chave' });
+        .upsert({ id: 'tabela_precos', valor: draft }, { onConflict: 'id' });
 
       if (error) throw error;
       setCategories(draft);

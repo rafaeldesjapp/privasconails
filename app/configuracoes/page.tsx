@@ -25,7 +25,7 @@ export default function ConfiguracoesPage() {
   useEffect(() => {
     if (currentUserRole === 'admin') {
       const loadSettings = async () => {
-        const { data } = await supabase.from('configuracoes').select('valor').eq('chave', 'whatsapp_studio').single();
+        const { data } = await supabase.from('configuracoes').select('valor').eq('id', 'whatsapp_studio').maybeSingle();
         if (data?.valor) {
           setWhatsappNumber(data.valor.replace(/"/g, ''));
         }
@@ -38,7 +38,7 @@ export default function ConfiguracoesPage() {
     setSavingConfig(true);
     const num = whatsappNumber.replace(/\D/g, '');
     const { error } = await supabase.from('configuracoes')
-      .upsert({ chave: 'whatsapp_studio', valor: JSON.stringify(num) }, { onConflict: 'chave' });
+      .upsert({ id: 'whatsapp_studio', valor: JSON.stringify(num) }, { onConflict: 'id' });
     
     if (error) alert('Erro ao salvar configuração. Verifique a tabela no Supabase.');
     else alert('Número do WhatsApp salvo com sucesso!');
