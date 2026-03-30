@@ -75,7 +75,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   }, [role]);
 
   const navItems = [
-    { name: 'Meu Portfólio', icon: Sparkles, href: '/portfolio' },
+    { name: 'Meus Trabalhos', icon: Sparkles, href: '/portfolio' },
     { name: 'Tabela de Preços', icon: Tag, href: '/tabela-precos' },
     { name: 'Meu Painel', icon: LayoutDashboard, href: '/painel' },
     { name: 'Contatos', icon: Users, href: '/contatos' },
@@ -89,7 +89,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const filteredNavItems = role === 'admin' 
     ? navItems 
     : navItems.filter(item => 
-        ['Meu Portfólio', 'Tabela de Preços', 'Agendamentos', 'Pagamentos', 'Papo de Salão', 'Histórico'].includes(item.name)
+        ['Meus Trabalhos', 'Tabela de Preços', 'Agendamentos', 'Pagamentos', 'Papo de Salão', 'Histórico'].includes(item.name)
       );
 
   const handleLogout = async () => {

@@ -57,7 +57,7 @@ const PortfolioPage = () => {
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const categories = ['Todos', 'Nail Art', 'Alongamento', 'Natural', 'Esmaltação'];
+  const categories = ['Todos', 'Nail Art', 'Cabelos'];
 
   useEffect(() => {
     if (user) {
@@ -235,7 +235,7 @@ const PortfolioPage = () => {
                   Nail Designer & Artist
                 </span>
                 <h1 className="text-5xl md:text-7xl font-black text-white mb-6 font-headline tracking-tighter leading-none">
-                  Meu <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400">Portfólio</span>
+                  Meus <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400">Trabalhos</span>
                 </h1>
                 <p className="text-lg md:text-xl text-slate-300 font-medium max-w-2xl mx-auto leading-relaxed">
                   Transformando unhas em obras de arte com técnica, cuidado e a sofisticação que você merece.
@@ -330,17 +330,6 @@ const PortfolioPage = () => {
                               <MessageCircle className="w-4 h-4 fill-white/20" />
                               <span className="text-sm font-bold">{item.comments}</span>
                             </div>
-                            {role === 'admin' && (
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteItem(item.id, item.imageUrl);
-                                }}
-                                className="ml-auto p-2 bg-red-500/20 backdrop-blur-md rounded-xl hover:bg-red-500/40 transition-colors text-red-200"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -350,7 +339,21 @@ const PortfolioPage = () => {
                           <span className="text-[10px] font-black uppercase tracking-widest text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
                             {item.category}
                           </span>
-                          <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                          <div className="flex items-center gap-2">
+                            <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                            {role === 'admin' && (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteItem(item.id, item.imageUrl);
+                                }}
+                                className="p-1.5 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors"
+                                title="Excluir trabalho"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <h3 className="font-bold text-slate-800 line-clamp-1 group-hover:text-purple-600 transition-colors">
                           {item.title}
