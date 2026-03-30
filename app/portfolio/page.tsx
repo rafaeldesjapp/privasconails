@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useSupabaseAuth } from '@/hooks/use-supabase';
 import { supabase } from '@/lib/supabase';
 import Header from '@/components/Header';
@@ -217,11 +218,11 @@ const PortfolioPage = () => {
           {/* Hero Section */}
           <section className="relative h-[60vh] overflow-hidden flex items-center justify-center bg-slate-900">
             <Image 
-              src="https://picsum.photos/seed/nailstudio/1920/1080?blur=4"
+              src="/fundo.jpg"
               alt="Background"
               fill
-              className="object-cover opacity-40"
-              referrerPolicy="no-referrer"
+              className="object-cover object-[center_25%] opacity-50"
+              priority
             />
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-900/50 to-[#fafafa]"></div>
             
@@ -260,10 +261,10 @@ const PortfolioPage = () => {
                       Adicionar Trabalho
                     </button>
                   ) : (
-                    <button className="flex items-center gap-2 px-8 py-4 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 hover:scale-105 transition-all shadow-xl shadow-purple-500/20">
+                    <Link href="/agendamentos" className="flex items-center gap-2 px-8 py-4 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 hover:scale-105 transition-all shadow-xl shadow-purple-500/20">
                       <Sparkles className="w-5 h-5" />
                       Agendar Agora
-                    </button>
+                    </Link>
                   )}
                 </div>
               </motion.div>
