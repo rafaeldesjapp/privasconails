@@ -138,14 +138,14 @@ export default function PapoDeSalaoPage() {
         }
       } else if (data && data.length > 0) {
         // Busca os perfis de forma separada e inquebrável (Sem erro de Foreign Key)
-        const uniqueUserIds = Array.from(new Set(data.map(m => m.user_id)));
+        const uniqueUserIds = Array.from(new Set(data.map((m: any) => m.user_id)));
         const { data: profilesParams } = await supabase
           .from('profiles')
           .select('id, full_name, avatar_url')
           .in('id', uniqueUserIds);
 
-        const mappedMessages = data.map(msg => {
-           const match = profilesParams?.find(p => p.id === msg.user_id);
+        const mappedMessages = data.map((msg: any) => {
+           const match = profilesParams?.find((p: any) => p.id === msg.user_id);
            return {
              ...msg,
              profiles: { full_name: match?.full_name || 'Usuário', avatar_url: match?.avatar_url || null }
