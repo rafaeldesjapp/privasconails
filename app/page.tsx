@@ -1,25 +1,114 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSupabaseAuth } from '@/hooks/use-supabase';
 import Auth from '@/components/Auth';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
+import { supabase } from '@/lib/supabase';
+import { format, startOfMonth, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { 
   TrendingUp, 
   Users, 
   Calendar, 
-  DollarSign,
-  ArrowUpRight,
-  ArrowDownRight,
-  Clock,
   CheckCircle2,
+  Clock,
   AlertCircle
 } from 'lucide-react';
 
-export default function Dashboard() {
-  const { user, loading } = useSupabaseAuth();
+export default function MeuPainel() {
+  const { user, role, loading } = useSupabaseAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [loadingDados, setLoadingDados] = useState(true);
+
+  // States reais do banco
+  const [agendamentosHoje, setAgendamentosHoje] = useState(0);
+  const [novosClientes, setNovosClientes] = useState(0);
+  const [servicosConcluidos, setServicosConcluidos] = useState(0);
+  const [proximosAgendamentos, setProximosAgendamentos] = useState<any[]>([]);
+  const [atividadesRecentes, setAtividadesRecentes] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let isMounted = true;
+
+    async function fetchData() {
+      try {
+        setLoadingDados(true);
+        const hojeStr = format(new Date(), 'yyyy-MM-dd');
+        const mesAtualStr = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+
+        // 1. Agendamentos Hoje
+        let qHoje = supabase
+          .from('agendamentos')
+          .select('*', { count: 'exact', head: true })
+          .eq('date', hojeStr)
+          .neq('status', 'bloqueado');
+        if (role === 'cliente') qHoje = qHoje.eq('user_id', user!.id);
+        const hojeResult = await qHoje;
+        if (isMounted) setAgendamentosHoje(hojeResult.count || 0);
+
+        // 2. Novos Clientes (Só admin vê todos. Cadastro no mês)
+        if (role === 'admin') {
+          const clientesR = await supabase
+            .from('profiles')
+            .select('*', { count: 'exact', head: true })
+            .eq('role', 'cliente')
+            .gte('created_at', mesAtualStr);
+          if (isMounted) setNovosClientes(clientesR.count || 0);
+        } else {
+          if (isMounted) setNovosClientes(0);
+        }
+
+        // 3. Serviços Finalizados no Mês (Para o cliente, os recebidos)
+        let qServicos = supabase
+          .from('agendamentos')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'concluido')
+          .gte('date', mesAtualStr);
+        if (role === 'cliente') qServicos = qServicos.eq('user_id', user!.id);
+        const servicosResult = await qServicos;
+        if (isMounted) setServicosConcluidos(servicosResult.count || 0);
+
+        // 4. Próximos Agendamentos Reais (Limite 3)
+        let qProximos = supabase
+          .from('agendamentos')
+          .select('id, client_name, service, date, time, status, user_id')
+          .gte('date', hojeStr)
+          .neq('status', 'bloqueado')
+          .neq('status', 'cancelado')
+          .order('date', { ascending: true })
+          .order('time', { ascending: true })
+          .limit(3);
+        if (role === 'cliente') qProximos = qProximos.eq('user_id', user!.id);
+        const { data: proximosData } = await qProximos;
+        if (isMounted) setProximosAgendamentos(proximosData || []);
+
+        // 5. Atividades Recentes Reais (Últimos criados)
+        let qRecentes = supabase
+          .from('agendamentos')
+          .select('id, client_name, service, status, created_at')
+          .order('created_at', { ascending: false })
+          .limit(5);
+        if (role === 'cliente') qRecentes = qRecentes.eq('user_id', user!.id);
+        const { data: recentesData } = await qRecentes;
+        if (isMounted) setAtividadesRecentes(recentesData || []);
+        
+      } catch (error) {
+        console.error('Erro ao buscar painel:', error);
+      } finally {
+        if (isMounted) setLoadingDados(false);
+      }
+    }
+
+    fetchData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user, role]);
 
   if (loading) {
     return (
@@ -33,12 +122,14 @@ export default function Dashboard() {
     return <Auth />;
   }
 
-  const stats = [
-    { name: 'Agendamentos Hoje', value: '12', icon: Calendar, change: '+2', trend: 'up' },
-    { name: 'Novos Clientes', value: '4', icon: Users, change: '+1', trend: 'up' },
-    { name: 'Faturamento Mensal', value: 'R$ 4.250', icon: DollarSign, change: '+12%', trend: 'up' },
-    { name: 'Taxa de Retorno', value: '85%', icon: TrendingUp, change: '-2%', trend: 'down' },
+  const estatisticas = [
+    { name: 'Agendamentos Hoje', value: agendamentosHoje.toString(), icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { name: role === 'admin' ? 'Novos Clientes (Mês)' : 'Seus Clientes', value: novosClientes.toString(), icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { name: 'Serviços Finalizados (Mês)', value: servicosConcluidos.toString(), icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50' },
+    { name: 'Futuros Confirmados', value: proximosAgendamentos.length.toString(), icon: TrendingUp, color: 'text-pink-600', bg: 'bg-pink-50' },
   ];
+
+  const cardsParaExibir = role === 'admin' ? estatisticas : estatisticas.filter(e => e.name !== 'Seus Clientes');
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -51,21 +142,24 @@ export default function Dashboard() {
           <div className="max-w-7xl mx-auto space-y-8">
             {/* Boas-vindas */}
             <div>
-              <h1 className="text-3xl font-black text-slate-800 font-headline">Olá, Priscila!</h1>
-              <p className="text-slate-500">Aqui está o resumo do seu estúdio hoje.</p>
+              <h1 className="text-3xl font-black text-slate-800 font-headline">
+                {role === 'admin' ? 'Olá, Priscila!' : `Olá, ${user.user_metadata?.full_name?.split(' ')[0] || 'Cliente'}!`}
+              </h1>
+              <p className="text-slate-500">Aqui está o resumo do seu estúdio em tempo real.</p>
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {stats.map((stat) => (
-                <div key={stat.name} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-2 bg-blue-50 rounded-lg">
-                      <stat.icon className="w-5 h-5 text-blue-600" />
+            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${cardsParaExibir.length} gap-4`}>
+              {cardsParaExibir.map((stat) => (
+                <div key={stat.name} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
+                  {loadingDados && (
+                    <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center">
+                      <div className="animate-spin w-5 h-5 border-2 border-slate-300 border-t-blue-500 rounded-full"></div>
                     </div>
-                    <div className={`flex items-center gap-1 text-xs font-bold ${stat.trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
-                      {stat.change}
-                      {stat.trend === 'up' ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                  )}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`p-2 rounded-lg ${stat.bg}`}>
+                      <stat.icon className={`w-5 h-5 ${stat.color}`} />
                     </div>
                   </div>
                   <p className="text-sm font-medium text-slate-500 mb-1">{stat.name}</p>
@@ -79,58 +173,81 @@ export default function Dashboard() {
               <div className="lg:col-span-2 space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-black text-slate-800 font-headline">Próximos Agendamentos</h2>
-                  <button className="text-sm font-bold text-blue-600 hover:underline">Ver todos</button>
                 </div>
                 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="p-4 flex items-center justify-between border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-slate-100 flex flex-col items-center justify-center text-slate-500">
-                          <span className="text-xs font-bold uppercase">Mar</span>
-                          <span className="text-lg font-black leading-none">28</span>
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-800">Maria Oliveira</p>
-                          <p className="text-xs text-slate-500 flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> 14:30 - Alongamento em Gel
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="px-3 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-wider rounded-full border border-blue-100">
-                          Confirmado
-                        </span>
-                      </div>
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden relative min-h-[150px]">
+                  {loadingDados && (
+                    <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center">
+                       <span className="text-sm text-slate-500 font-medium animate-pulse">Carregando dados...</span>
                     </div>
-                  ))}
+                  )}
+                  {proximosAgendamentos.length === 0 && !loadingDados && (
+                    <div className="p-8 text-center text-slate-400 font-medium">
+                      Nenhum agendamento futuro encontrado.
+                    </div>
+                  )}
+                  {proximosAgendamentos.map((agend) => {
+                    const dataObj = parseISO(agend.date);
+                    return (
+                      <div key={agend.id} className="p-4 flex items-center justify-between border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-slate-100 flex flex-col items-center justify-center text-slate-500 min-w-[3rem]">
+                            <span className="text-[10px] font-bold uppercase leading-none">{format(dataObj, 'MMM', { locale: ptBR })}</span>
+                            <span className="text-lg font-black leading-none">{format(dataObj, 'dd')}</span>
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-800">{agend.client_name}</p>
+                            <p className="text-xs text-slate-500 flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> {agend.time} - {agend.service}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${
+                            agend.status === 'agendado' ? 'bg-blue-50 text-blue-700 border-blue-100' : 
+                            agend.status === 'concluido' ? 'bg-green-50 text-green-700 border-green-100' :
+                            'bg-red-50 text-red-700 border-red-100'
+                          }`}>
+                            {agend.status}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Atividades Recentes */}
               <div className="space-y-4">
-                <h2 className="text-xl font-black text-slate-800 font-headline">Atividades</h2>
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-6">
-                  <div className="flex gap-3">
-                    <div className="mt-1 p-1 bg-green-50 rounded-full">
-                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                <h2 className="text-xl font-black text-slate-800 font-headline">Atividades Recentes</h2>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-6 relative min-h-[150px]">
+                  {loadingDados && (
+                    <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center"></div>
+                  )}
+                  {atividadesRecentes.length === 0 && !loadingDados && (
+                    <div className="text-center text-slate-400 font-medium py-4 text-sm">
+                      Nenhuma atividade recente.
                     </div>
-                    <div>
-                      <p className="text-sm text-slate-800 font-medium">Agendamento concluído</p>
-                      <p className="text-xs text-slate-500">Ana Paula finalizou o serviço.</p>
-                      <p className="text-[10px] text-slate-400 mt-1">Há 15 minutos</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <div className="mt-1 p-1 bg-blue-50 rounded-full">
-                      <AlertCircle className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-800 font-medium">Novo agendamento</p>
-                      <p className="text-xs text-slate-500">Carla Mendes agendou para amanhã.</p>
-                      <p className="text-[10px] text-slate-400 mt-1">Há 1 hora</p>
-                    </div>
-                  </div>
+                  )}
+                  {atividadesRecentes.map((atividade) => {
+                     const isNovo = atividade.status === 'agendado';
+                     return (
+                      <div key={atividade.id} className="flex gap-3">
+                        <div className={`mt-1 p-1 rounded-full w-fit h-fit ${isNovo ? 'bg-blue-50' : (atividade.status === 'concluido' ? 'bg-green-50' : 'bg-red-50')}`}>
+                          {isNovo ? <AlertCircle className="w-4 h-4 text-blue-600" /> : <CheckCircle2 className={`w-4 h-4 ${atividade.status === 'concluido' ? 'text-green-600' : 'text-red-600'}`} />}
+                        </div>
+                        <div>
+                          <p className="text-sm text-slate-800 font-medium leading-tight">
+                            {isNovo ? 'Agendado' : (atividade.status === 'concluido' ? 'Finalizado' : 'Cancelado')}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1">{atividade.client_name} - {atividade.service}</p>
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            {format(new Date(atividade.created_at), "dd/MM 'às' HH:mm")}
+                          </p>
+                        </div>
+                      </div>
+                     );
+                  })}
                 </div>
               </div>
             </div>
