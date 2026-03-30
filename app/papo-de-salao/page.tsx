@@ -323,9 +323,7 @@ export default function PapoDeSalaoPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <div className="hidden lg:block">
-         <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-      </div>
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       
       <div className="lg:ml-64 flex flex-col h-[100dvh]">
         <div className="shrink-0">

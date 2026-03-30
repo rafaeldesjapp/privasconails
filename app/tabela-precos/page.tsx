@@ -283,14 +283,14 @@ export default function TabelaPrecos() {
             )}
 
             {/* ── Categorias ── */}
-            <div className="space-y-6">
+            <div className="space-y-3 sm:space-y-6">
               {displayData.map((cat, catIdx) => (
                 <div
                   key={cat.id}
                   className="bg-white rounded-2xl shadow-sm border border-rose-100 overflow-hidden"
                 >
                   {/* Cabeçalho da categoria */}
-                  <div className="flex items-center justify-between gap-3 px-6 py-4 bg-gradient-to-r from-rose-500 to-pink-500">
+                  <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-2.5 sm:py-4 bg-gradient-to-r from-rose-500 to-pink-500">
                     {editMode ? (
                       <input
                         value={cat.nome}
@@ -318,7 +318,7 @@ export default function TabelaPrecos() {
                     {cat.itens.map((item, itemIdx) => (
                       <div
                         key={item.id}
-                        className={`flex ${editMode ? 'flex-col sm:flex-row gap-3 items-start' : 'items-center'} sm:items-center justify-between px-4 sm:px-6 py-4 hover:bg-rose-50/40 transition-colors group relative`}
+                        className={`flex ${editMode ? 'flex-col sm:flex-row gap-3 items-start py-3 sm:py-4' : 'items-center py-1.5 sm:py-4'} sm:items-center justify-between px-4 sm:px-6 hover:bg-rose-50/40 transition-colors group relative`}
                       >
                         {editMode ? (
                           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1 w-full min-w-0">

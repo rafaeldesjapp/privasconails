@@ -387,28 +387,28 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-400 via-orange-300 to-yellow-300 p-4 md:p-8 flex items-center justify-center font-sans">
+    <div className="absolute inset-0 bg-transparent p-2 py-3 md:p-8 flex flex-col items-center justify-center font-sans overflow-hidden">
       
       {/* Container do Caderno */}
-      <div className="relative w-full max-w-6xl h-[85vh] md:h-auto md:aspect-[4/3] md:max-h-[90vh] flex shadow-2xl rounded-xl md:rounded-3xl overflow-hidden bg-pink-100 ring-4 md:ring-8 ring-white/20 perspective-[2000px] select-none">
+      <div className="relative w-full h-full max-w-6xl md:h-auto md:aspect-[4/3] md:max-h-[90vh] flex flex-col md:flex-row shadow-2xl rounded-2xl md:rounded-3xl overflow-hidden bg-pink-100 ring-2 sm:ring-4 md:ring-8 ring-white/20 perspective-[2000px] select-none">
         
         <div className="absolute inset-0 bg-white/40 mix-blend-overlay pointer-events-none z-0" style={{ backgroundImage: 'radial-gradient(rgba(255, 255, 255, 0.5) 2px, transparent 2px)', backgroundSize: '24px 24px' }} />
 
         {/* Página Esquerda (Estática - Resumo do Mês) */}
-        <div className="hidden md:flex w-1/2 bg-white flex-col border-r-2 border-slate-200/50 shadow-[10px_0_20px_rgba(0,0,0,0.05)] z-10 p-8 pt-12 relative overflow-hidden">
-          <div className="absolute right-0 top-0 bottom-0 w-8 flex flex-col justify-evenly py-6">
+        <div className="flex w-full md:w-1/2 bg-white flex-col border-b-2 md:border-b-0 md:border-r-2 border-slate-200/50 shadow-[0_5px_15px_rgba(0,0,0,0.05)] md:shadow-[10px_0_20px_rgba(0,0,0,0.05)] z-30 p-2 md:p-8 md:pt-12 relative flex-shrink-0">
+          <div className="hidden md:flex absolute right-0 top-0 bottom-0 w-8 flex-col justify-evenly py-6">
             {[...Array(15)].map((_, i) => (
               <div key={i} className="w-5 h-5 rounded-full bg-slate-200 border border-slate-300 shadow-inner -mr-2" />
             ))}
           </div>
 
-          <div className="pr-6 h-full flex flex-col">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center">
-                  <CalIcon className="w-6 h-6 text-pink-500" />
+          <div className="md:pr-6 h-full flex flex-col">
+            <div className="flex items-center justify-between mb-2 md:mb-8">
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="w-8 h-8 md:w-12 md:h-12 bg-pink-100 rounded-full flex items-center justify-center">
+                  <CalIcon className="w-4 h-4 md:w-6 md:h-6 text-pink-500" />
                 </div>
-                <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight">
+                <h2 className="text-xl md:text-3xl font-black text-slate-800 uppercase tracking-tight">
                   {format(currentDate, "MMMM yyyy", { locale: ptBR })}
                 </h2>
               </div>
@@ -439,7 +439,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                         }
                       }}
                       className={cn(
-                        "w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium transition-all relative",
+                        "w-7 h-7 md:w-10 md:h-10 mx-auto rounded-full flex items-center justify-center text-xs md:text-sm font-medium transition-all relative",
                         isSelected 
                           ? "bg-gradient-to-br from-pink-500 to-orange-400 text-white shadow-md shadow-pink-500/30 scale-110" 
                           : "text-slate-600 hover:bg-pink-50",
@@ -480,7 +480,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
               })}
             </div>
 
-            <div className="mt-auto bg-orange-50/50 rounded-2xl p-6 border border-orange-100 border-dashed">
+            <div className="hidden md:block mt-auto bg-orange-50/50 rounded-2xl p-6 border border-orange-100 border-dashed">
               <h3 className="font-bold text-slate-800 mb-2">Dica de Produtividade</h3>
               <p className="text-sm text-slate-600">
                 Pressione a bolinha <GripVertical className="inline w-4 h-4 text-slate-400" /> ao lado de qualquer compromisso ou bloqueio e arraste para os horários vizinhos para multiplicar sua ação imediatamente!
@@ -497,7 +497,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
         </div>
 
         {/* Página Direita Animada (Dinâmica) */}
-        <div className="w-full md:w-1/2 relative bg-[#FDFBF7] z-20 overflow-hidden transform-gpu" style={{ transformOrigin: 'left center' }}>
+        <div className="w-full h-full min-h-[300px] md:w-1/2 flex-1 relative bg-[#FDFBF7] z-20 overflow-hidden transform-gpu" style={{ transformOrigin: 'left center' }}>
           
           <AnimatePresence initial={false} custom={direction} mode="wait">
             <motion.div
@@ -507,7 +507,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
               initial="enter"
               animate="center"
               exit="exit"
-              className="absolute inset-0 p-4 md:p-8 pt-8 md:pt-12 overflow-y-auto"
+              className="absolute inset-0 p-3 md:p-8 pt-4 md:pt-12 overflow-y-auto"
               style={{ transformOrigin: 'left center' }}
             >
               
@@ -515,14 +515,14 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
 
               <div className="relative z-10 pl-2 md:pl-6">
                 
-                <div className="flex items-center justify-between mb-8 border-b-2 border-red-400/30 pb-4">
+                <div className="flex items-center justify-between mb-4 md:mb-8 border-b-2 border-red-400/30 pb-2 md:pb-4">
                   <div className="group flex items-start gap-3">
                     <div>
-                      <h1 className="text-3xl md:text-4xl font-black text-rose-500 uppercase tracking-tighter">
+                      <h1 className="text-xl md:text-4xl font-black text-rose-500 uppercase tracking-tighter">
                         {format(currentDate, "EEEE", { locale: ptBR })}
                       </h1>
                       <div className="flex items-center gap-2">
-                        <p className="text-base md:text-lg font-bold text-slate-500">
+                        <p className="text-sm md:text-lg font-bold text-slate-500">
                           {format(currentDate, "dd 'de' MMMM", { locale: ptBR })}
                         </p>
                         {isAdminView && (
