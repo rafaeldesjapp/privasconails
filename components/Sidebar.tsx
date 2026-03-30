@@ -77,7 +77,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const navItems = [
     { name: 'Meu Portfólio', icon: Sparkles, href: '/portfolio' },
     { name: 'Tabela de Preços', icon: Tag, href: '/tabela-precos' },
-    { name: 'Meu Painel', icon: LayoutDashboard, href: '/' },
+    { name: 'Meu Painel', icon: LayoutDashboard, href: '/painel' },
     { name: 'Contatos', icon: Users, href: '/contatos' },
     { name: 'Agenda', icon: CalendarDays, href: '/agenda' },
     { name: 'Agendamentos', icon: CalendarPlus, href: '/agendamentos' },

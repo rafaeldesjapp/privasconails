@@ -43,11 +43,20 @@ async function initializeGlobalAuth() {
       notifyListeners();
     }
 
-    supabase.auth.onAuthStateChange(async (_event: string, session: any) => {
+    supabase.auth.onAuthStateChange(async (event: string, session: any) => {
+      if (event === 'INITIAL_SESSION') return;
+      
+      const currentUser = session?.user ?? null;
+
+      if (currentUser?.id === globalUser?.id && event !== 'SIGNED_OUT') {
+        globalUser = currentUser;
+        notifyListeners();
+        return;
+      }
+
       globalLoading = true;
       notifyListeners();
       try {
-        const currentUser = session?.user ?? null;
         globalUser = currentUser;
         
         if (currentUser) {
