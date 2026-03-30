@@ -270,13 +270,13 @@ export default function PapoDeSalaoPage() {
   };
 
   const handleEditMessage = (msg: ChatMessage) => {
-    if (role !== 'admin' && user.id !== msg.user_id) return;
+    if (role !== 'admin' && user?.id !== msg.user_id) return;
     setEditingId(msg.id);
     setNewMessage(msg.texto || '');
   };
 
   const handleDeleteMessage = async (msg: ChatMessage) => {
-    if (role !== 'admin' && user.id !== msg.user_id) return;
+    if (role !== 'admin' && user?.id !== msg.user_id) return;
     if (confirm("Tem certeza que deseja apagar esta mensagem para todos?")) {
       try {
         const { error } = await supabase.from('chat_mensagens').delete().eq('id', msg.id);
