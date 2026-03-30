@@ -3,10 +3,10 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { userId, email, phone, fullName, username } = await req.json();
+    const { userId, email, phone, fullName, username, requesterId } = await req.json();
 
-    if (!userId) {
-      return NextResponse.json({ error: 'ID do usuário é obrigatório' }, { status: 400 });
+    if (!userId || !requesterId) {
+      return NextResponse.json({ error: 'ID do usuário e requesterId são obrigatórios' }, { status: 400 });
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,6 +24,16 @@ export async function POST(req: Request) {
         persistSession: false
       }
     });
+
+    const { data: requesterProfile } = await supabaseAdmin.from('profiles').select('role').eq('id', requesterId).single();
+    if (!requesterProfile || (requesterProfile.role !== 'admin' && requesterProfile.role !== 'desenvolvedor')) {
+       return NextResponse.json({ error: 'Sem permissão para alterar este usuário (admin/desenvolvedor)' }, { status: 403 });
+    }
+
+    const { data: targetProfile } = await supabaseAdmin.from('profiles').select('role').eq('id', userId).single();
+    if (targetProfile?.role === 'desenvolvedor' && requesterProfile.role !== 'desenvolvedor') {
+       return NextResponse.json({ error: 'Apenas desenvolvedores podem editar perfis de outros desenvolvedores' }, { status: 403 });
+    }
 
     // 1. Atualizar no Supabase Auth (se o email foi enviado)
     const trimmedEmail = email?.trim();

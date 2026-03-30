@@ -63,8 +63,12 @@ const UsuariosPage = () => {
 
   // Função para abrir modal de alterar senha
   const openPasswordModal = (profile: any) => {
-    if (currentUserRole !== 'admin') {
+    if (currentUserRole !== 'admin' && currentUserRole !== 'desenvolvedor') {
       alert('Apenas administradores podem gerenciar senhas de usuários.');
+      return;
+    }
+    if (profile.role === 'desenvolvedor' && currentUserRole !== 'desenvolvedor') {
+      alert('Administradores não podem editar um Desenvolvedor.');
       return;
     }
     setSelectedUser(profile);
@@ -95,7 +99,7 @@ const UsuariosPage = () => {
     setUpdatingPassword(true);
 
     try {
-      if (currentUserRole === 'admin') {
+      if (currentUserRole === 'admin' || currentUserRole === 'desenvolvedor') {
         console.log('Frontend: Attempting to change password for:', selectedUser.id);
         // Usar a API para alterar senha
         const response = await fetch('/api/admin/change-password', {
@@ -103,7 +107,8 @@ const UsuariosPage = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: selectedUser.id,
-            newPassword: newPassword
+            newPassword: newPassword,
+            requesterId: user?.id
           })
         });
 
@@ -250,9 +255,9 @@ const UsuariosPage = () => {
   const handleUpdateUser = async (data: { email?: string; phone?: string; fullName?: string; username?: string }) => {
     setUpdatingField(true);
     try {
-      if (currentUserRole === 'admin') {
+      if (currentUserRole === 'admin' || currentUserRole === 'desenvolvedor') {
         // Limpar dados antes de enviar
-        const cleanData: any = { userId: selectedUser.id };
+        const cleanData: any = { userId: selectedUser.id, requesterId: user?.id };
         if (data.email) cleanData.email = data.email.trim();
         if (data.phone !== undefined) cleanData.phone = data.phone.trim();
         if (data.fullName !== undefined) cleanData.fullName = data.fullName.trim();
@@ -308,7 +313,15 @@ const UsuariosPage = () => {
 
   const toggleRole = async (profileId: string, currentRole: string) => {
     setUpdatingId(profileId);
-    const newRole = currentRole === 'admin' ? 'cliente' : 'admin';
+    let newRole = 'cliente';
+    
+    if (currentUserRole === 'admin') {
+      newRole = currentRole === 'admin' ? 'cliente' : 'admin';
+    } else if (currentUserRole === 'desenvolvedor') {
+      if (currentRole === 'cliente') newRole = 'admin';
+      else if (currentRole === 'admin') newRole = 'desenvolvedor';
+      else newRole = 'cliente';
+    }
     
     // Optimistic update - atualiza a UI imediatamente
     setLocalProfiles(prev => 
@@ -344,8 +357,12 @@ const UsuariosPage = () => {
   };
 
   const openDeleteModal = (profile: any) => {
-    if (currentUserRole !== 'admin') {
+    if (currentUserRole !== 'admin' && currentUserRole !== 'desenvolvedor') {
       alert('Apenas administradores podem excluir usuários.');
+      return;
+    }
+    if (profile.role === 'desenvolvedor' && currentUserRole !== 'desenvolvedor') {
+      alert('Administradores não podem excluir um Desenvolvedor.');
       return;
     }
     setSelectedUser(profile);
@@ -415,16 +432,16 @@ const UsuariosPage = () => {
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h1 className="text-2xl font-black text-slate-800 font-headline">
-                  {currentUserRole === 'admin' ? 'Gerenciamento de Usuários' : 'Meu Perfil'}
+                  {(currentUserRole === 'admin' || currentUserRole === 'desenvolvedor') ? 'Gerenciamento de Usuários' : 'Meu Perfil'}
                 </h1>
                 <p className="text-slate-500">
-                  {currentUserRole === 'admin' 
+                  {(currentUserRole === 'admin' || currentUserRole === 'desenvolvedor') 
                     ? 'Controle os níveis de acesso dos usuários do sistema.' 
                     : 'Visualize suas informações de perfil.'}
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                {currentUserRole === 'admin' && (
+                {(currentUserRole === 'admin' || currentUserRole === 'desenvolvedor') && (
                   <button 
                     onClick={() => setShowCreateModal(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all shadow-sm"
@@ -464,8 +481,13 @@ const UsuariosPage = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {localProfiles
-                        .filter(p => currentUserRole === 'admin' || p.id === user?.id)
-                        .map((profile) => (
+                        .filter(p => currentUserRole === 'admin' || currentUserRole === 'desenvolvedor' || p.id === user?.id)
+                        .map((profile) => {
+                          const isProtectedDev = profile.role === 'desenvolvedor' && currentUserRole !== 'desenvolvedor';
+                          const showEditButtons = (currentUserRole === 'admin' || currentUserRole === 'desenvolvedor' || profile.id === user?.id) && !isProtectedDev;
+                          const showAdminButtons = (currentUserRole === 'admin' || currentUserRole === 'desenvolvedor') && !isProtectedDev;
+                          
+                          return (
                         <tr key={profile.id} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-3">
@@ -476,7 +498,7 @@ const UsuariosPage = () => {
                                 <span className="text-sm font-medium text-slate-700">
                                   {profile.full_name || profile.email?.split('@')[0] || 'Usuário'}
                                 </span>
-                                {(currentUserRole === 'admin' || profile.id === user?.id) && (
+                                {showEditButtons && (
                                   <button
                                     onClick={() => openNameModal(profile)}
                                     className="p-1 hover:bg-blue-50 rounded text-slate-400 hover:text-blue-600 transition-all"
@@ -493,7 +515,7 @@ const UsuariosPage = () => {
                               <span className="text-sm font-bold text-slate-600">
                                 {profile.username ? `@${profile.username}` : '---'}
                               </span>
-                              {(currentUserRole === 'admin' || profile.id === user?.id) && (
+                              {showEditButtons && (
                                 <button
                                   onClick={() => openUsernameModal(profile)}
                                   className="p-1.5 hover:bg-blue-50 rounded-lg text-slate-400 hover:text-blue-600 transition-all"
@@ -507,7 +529,7 @@ const UsuariosPage = () => {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-slate-600">{profile.email}</span>
-                              {(currentUserRole === 'admin' || profile.id === user?.id) && (
+                              {showEditButtons && (
                                 <button
                                   onClick={() => openEmailModal(profile)}
                                   className="p-1.5 hover:bg-blue-50 rounded-lg text-slate-400 hover:text-blue-600 transition-all"
@@ -521,7 +543,7 @@ const UsuariosPage = () => {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-slate-600">{profile.phone || '---'}</span>
-                              {(currentUserRole === 'admin' || profile.id === user?.id) && (
+                              {showEditButtons && (
                                 <button
                                   onClick={() => openPhoneModal(profile)}
                                   className="p-1.5 hover:bg-blue-50 rounded-lg text-slate-400 hover:text-blue-600 transition-all"
@@ -535,12 +557,14 @@ const UsuariosPage = () => {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={cn(
                               "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all",
-                              profile.role === 'admin' 
-                                ? "bg-blue-50 text-blue-700 border border-blue-100" 
-                                : "bg-amber-50 text-amber-700 border border-amber-100"
+                              profile.role === 'desenvolvedor'
+                                ? "bg-purple-50 text-purple-700 border border-purple-100"
+                                : profile.role === 'admin' 
+                                  ? "bg-blue-50 text-blue-700 border border-blue-100" 
+                                  : "bg-amber-50 text-amber-700 border border-amber-100"
                             )}>
-                              {profile.role === 'admin' ? <Shield className="w-3 h-3" /> : null}
-                              {profile.role === 'admin' ? 'Administrador' : 'Cliente'}
+                              {profile.role === 'desenvolvedor' || profile.role === 'admin' ? <Shield className="w-3 h-3" /> : null}
+                              {profile.role === 'desenvolvedor' ? 'Desenvolvedor' : (profile.role === 'admin' ? 'Administrador' : 'Cliente')}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -550,7 +574,7 @@ const UsuariosPage = () => {
                           </td>
                           <td className="px-6 py-4 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-2">
-                              {(currentUserRole === 'admin' || profile.id === user?.id) && (
+                              {showEditButtons && (
                                 <button
                                   onClick={() => openPasswordModal(profile)}
                                   className="text-xs font-bold px-3 py-2 rounded-lg transition-all text-slate-600 hover:bg-slate-100 flex items-center gap-1"
@@ -560,7 +584,7 @@ const UsuariosPage = () => {
                                   Redefinir Senha
                                 </button>
                               )}
-                              {currentUserRole === 'admin' && (
+                              {showAdminButtons && (
                                 <button
                                   onClick={() => openDeleteModal(profile)}
                                   disabled={profile.id === user?.id}
@@ -573,24 +597,24 @@ const UsuariosPage = () => {
                                   <Trash2 className="w-4 h-4" />
                                 </button>
                               )}
-                              {currentUserRole === 'admin' && (
+                              {showAdminButtons && (
                                 <button
                                   onClick={() => toggleRole(profile.id, profile.role)}
                                   disabled={updatingId === profile.id || profile.id === user?.id}
                                   className={cn(
                                     "text-xs font-bold px-4 py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed",
-                                    profile.role === 'admin'
+                                    profile.role === 'admin' || profile.role === 'desenvolvedor'
                                       ? "text-amber-600 hover:bg-amber-50"
                                       : "text-blue-600 hover:bg-blue-50"
                                   )}
                                 >
-                                  {updatingId === profile.id ? 'Atualizando...' : (profile.role === 'admin' ? 'Tornar Cliente' : 'Tornar Admin')}
+                                  {updatingId === profile.id ? 'Atualizando...' : 'Alterar Nível'}
                                 </button>
                               )}
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        )})}
                     </tbody>
                   </table>
                 </div>

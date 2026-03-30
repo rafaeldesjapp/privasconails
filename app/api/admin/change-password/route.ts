@@ -3,10 +3,10 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { userId, newPassword } = await req.json();
+    const { userId, newPassword, requesterId } = await req.json();
 
-    if (!userId || !newPassword) {
-      return NextResponse.json({ error: 'ID do usuário e nova senha são obrigatórios' }, { status: 400 });
+    if (!userId || !newPassword || !requesterId) {
+      return NextResponse.json({ error: 'ID do usuário, nova senha e requesterId são obrigatórios' }, { status: 400 });
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -55,6 +55,16 @@ export async function POST(req: Request) {
     } catch (err: any) {
       console.error('API: Erro ao criar cliente Supabase:', err);
       return NextResponse.json({ error: `Erro ao inicializar cliente Supabase: ${err.message}` }, { status: 500 });
+    }
+
+    const { data: requesterProfile } = await supabaseAdmin.from('profiles').select('role').eq('id', requesterId).single();
+    if (!requesterProfile || (requesterProfile.role !== 'admin' && requesterProfile.role !== 'desenvolvedor')) {
+       return NextResponse.json({ error: 'Sem permissão para alterar senha (admin/desenvolvedor)' }, { status: 403 });
+    }
+
+    const { data: targetProfile } = await supabaseAdmin.from('profiles').select('role').eq('id', userId).single();
+    if (targetProfile?.role === 'desenvolvedor' && requesterProfile.role !== 'desenvolvedor') {
+       return NextResponse.json({ error: 'Apenas desenvolvedores podem alterar a senha de outros desenvolvedores' }, { status: 403 });
     }
 
     const { data, error } = await supabaseAdmin.auth.admin.updateUserById(

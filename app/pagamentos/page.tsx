@@ -52,8 +52,8 @@ export default function PagamentosPage() {
            setExtrato(data);
         }
 
-        // Se for admin, tenta buscar as chaves da tabela configuracoes
-        if (role === 'admin') {
+        // Se for admin ou desenvolvedor, tenta buscar as chaves da tabela configuracoes
+        if (role === 'admin' || role === 'desenvolvedor') {
            try {
              const { data: configData, error: configErr } = await supabase
                 .from('configuracoes')
@@ -151,15 +151,15 @@ export default function PagamentosPage() {
               <div>
                  <h1 className="text-2xl sm:text-3xl font-black text-slate-800 font-headline flex items-center gap-3">
                    <Wallet className="w-8 h-8 text-blue-600" />
-                   {role === 'admin' ? 'Dashboard Financeiro' : 'Meus Recibos'}
+                   {(role === 'admin' || role === 'desenvolvedor') ? 'Dashboard Financeiro' : 'Meus Recibos'}
                  </h1>
                  <p className="text-slate-500 mt-1">
-                   {role === 'admin' ? 'Acompanhe as entradas de caixa e configure o portal de pagamentos.' : 'Histórico de todos os seus pagamentos confirmados.'}
+                   {(role === 'admin' || role === 'desenvolvedor') ? 'Acompanhe as entradas de caixa e pagamentos.' : 'Histórico de todos os seus pagamentos confirmados.'}
                  </p>
               </div>
 
-              {/* Tabs do Admin */}
-              {role === 'admin' && (
+              {/* Tabs do Admin/Desenvolvedor */}
+              {(role === 'admin' || role === 'desenvolvedor') && (
                 <div className="flex bg-white rounded-xl shadow-sm border border-slate-200 p-1 shrink-0">
                   <button 
                     onClick={() => setActiveTab('extrato')}
@@ -167,12 +167,14 @@ export default function PagamentosPage() {
                   >
                     <LineChart className="w-4 h-4" /> Resumo
                   </button>
-                  <button 
-                    onClick={() => setActiveTab('configs')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'configs' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
-                    <Settings className="w-4 h-4" /> Integração
-                  </button>
+                  {role === 'desenvolvedor' && (
+                    <button 
+                      onClick={() => setActiveTab('configs')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'configs' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      <Settings className="w-4 h-4" /> Integração
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -182,7 +184,7 @@ export default function PagamentosPage() {
                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                  
                  {/* Cards de Resumo Admin */}
-                 {role === 'admin' && (
+                 {(role === 'admin' || role === 'desenvolvedor') && (
                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
                        <span className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Total Transações</span>
@@ -235,7 +237,7 @@ export default function PagamentosPage() {
                             <ShieldAlert className="w-12 h-12 text-slate-300 mb-4" />
                             <p className="text-slate-500 font-bold text-lg">Nenhum pagamento registrado ainda.</p>
                             <p className="text-slate-400 text-sm mt-1">
-                              {role === 'admin' 
+                              {(role === 'admin' || role === 'desenvolvedor') 
                                 ? 'Finalize os agendamentos marcando a forma de pagamento e eles aparecerão aqui.'
                                 : 'Quando você pagar ou realizar um serviço, seu recibo aparecerá aqui.'}
                             </p>
@@ -291,7 +293,7 @@ export default function PagamentosPage() {
             )}
 
             {/* View das Configurações Admin */}
-            {activeTab === 'configs' && role === 'admin' && (
+            {activeTab === 'configs' && role === 'desenvolvedor' && (
                <div className="max-w-3xl animate-in fade-in slide-in-from-right-2">
                  <div className="bg-white rounded-2xl border border-slate-200 shadow-xl shadow-blue-900/5 overflow-hidden">
                     {/* Cofre Header */}

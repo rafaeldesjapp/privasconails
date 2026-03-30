@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       .eq('id', authData.user.id)
       .single();
 
-    if (adminProfile?.role !== 'admin') {
+    if (adminProfile?.role !== 'admin' && adminProfile?.role !== 'desenvolvedor') {
       return NextResponse.json({ error: 'Apenas administradores podem excluir usuários.' }, { status: 403 });
     }
 
@@ -54,9 +54,13 @@ export async function POST(req: Request) {
     // Obter infos básicas do alvo antes de excluir para o log
     const { data: targetProfile } = await supabaseAdmin
       .from('profiles')
-      .select('email, full_name, username')
+      .select('email, full_name, username, role')
       .eq('id', targetUserId)
       .single();
+
+    if (targetProfile?.role === 'desenvolvedor' && adminProfile?.role !== 'desenvolvedor') {
+      return NextResponse.json({ error: 'Apenas desenvolvedores podem excluir um desenvolvedor.' }, { status: 403 });
+    }
 
     const targetInfo = targetProfile ? (targetProfile.full_name || targetProfile.username || targetProfile.email) : targetUserId;
 

@@ -127,7 +127,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
               {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário'}
             </p>
             <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider leading-none">
-              {role === 'admin' ? 'Administrador' : 'Cliente'}
+              {role === 'desenvolvedor' ? 'Desenvolvedor' : (role === 'admin' ? 'Administrador' : 'Cliente')}
             </p>
           </div>
           

@@ -36,7 +36,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
   // Verificar se há novas solicitações
   React.useEffect(() => {
-    if (role !== 'admin') return;
+    if (role !== 'admin' && role !== 'desenvolvedor') return;
 
     const checkRequests = async () => {
       try {
@@ -86,7 +86,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     { name: 'Histórico', icon: History, href: '/historico' },
   ];
 
-  const filteredNavItems = role === 'admin' 
+  const filteredNavItems = (role === 'admin' || role === 'desenvolvedor') 
     ? navItems 
     : navItems.filter(item => 
         ['Meus Trabalhos', 'Tabela de Preços', 'Agendamentos', 'Pagamentos', 'Papo de Salão', 'Histórico'].includes(item.name)
@@ -168,7 +168,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             {role === 'cliente' ? 'Meu Perfil' : 'Usuários'}
           </span>
         </Link>
-        {role === 'admin' && (
+        {(role === 'admin' || role === 'desenvolvedor') && (
           <Link 
             href="/solicitacoes"
             onClick={() => onClose()}
@@ -186,14 +186,16 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             </span>
           </Link>
         )}
-        <Link 
-          href="/configuracoes"
-          onClick={() => onClose()}
-          className="flex items-center gap-2.5 lg:gap-3 px-3 py-2 lg:px-4 lg:py-2.5 text-slate-600 hover:text-blue-600 transition-colors duration-200 rounded-lg lg:rounded-xl hover:bg-slate-50"
-        >
-          <Settings className="w-4 h-4 lg:w-5 lg:h-5 text-slate-400" />
-          <span className="text-sm font-medium">Configurações</span>
-        </Link>
+        {role === 'desenvolvedor' && (
+          <Link 
+            href="/configuracoes"
+            onClick={() => onClose()}
+            className="flex items-center gap-2.5 lg:gap-3 px-3 py-2 lg:px-4 lg:py-2.5 text-slate-600 hover:text-blue-600 transition-colors duration-200 rounded-lg lg:rounded-xl hover:bg-slate-50"
+          >
+            <Settings className="w-4 h-4 lg:w-5 lg:h-5 text-slate-400" />
+            <span className="text-sm font-medium">Configurações</span>
+          </Link>
+        )}
         <button 
           onClick={handleLogout}
           className="w-full flex items-center gap-2.5 lg:gap-3 px-3 py-2 lg:px-4 lg:py-2.5 text-slate-600 hover:text-red-600 transition-colors duration-200 rounded-lg lg:rounded-xl hover:bg-red-50"
