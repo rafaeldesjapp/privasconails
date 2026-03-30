@@ -40,7 +40,7 @@ const SolicitacoesPage = () => {
   };
 
   useEffect(() => {
-    if (role === 'admin') {
+    if (role === 'admin' || role === 'desenvolvedor') {
       fetchRequests();
       
       // Real-time updates
@@ -151,7 +151,7 @@ const SolicitacoesPage = () => {
   }
 
   if (!user) return <Auth />;
-  if (role !== 'admin') {
+  if (role !== 'admin' && role !== 'desenvolvedor') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
         <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center">

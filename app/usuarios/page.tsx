@@ -311,16 +311,13 @@ const UsuariosPage = () => {
     }
   };
 
-  const toggleRole = async (profileId: string, currentRole: string) => {
+  const changeRole = async (profileId: string, newRole: string) => {
     setUpdatingId(profileId);
-    let newRole = 'cliente';
     
-    if (currentUserRole === 'admin') {
-      newRole = currentRole === 'admin' ? 'cliente' : 'admin';
-    } else if (currentUserRole === 'desenvolvedor') {
-      if (currentRole === 'cliente') newRole = 'admin';
-      else if (currentRole === 'admin') newRole = 'desenvolvedor';
-      else newRole = 'cliente';
+    if (currentUserRole === 'admin' && newRole === 'desenvolvedor') {
+      alert('Apenas desenvolvedores podem criar outro desenvolvedor.');
+      setUpdatingId(null);
+      return;
     }
     
     // Optimistic update - atualiza a UI imediatamente
@@ -470,13 +467,13 @@ const UsuariosPage = () => {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100">
-                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Usuário (Nome)</th>
-                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Login (@)</th>
-                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Email</th>
-                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Celular</th>
-                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Nível de Acesso</th>
-                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Data de Cadastro</th>
-                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Ações</th>
+                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Usuário (Nome)</th>
+                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Login (@)</th>
+                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Email</th>
+                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Celular</th>
+                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Nível de Acesso</th>
+                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Data de Cadastro</th>
+                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -489,7 +486,7 @@ const UsuariosPage = () => {
                           
                           return (
                         <tr key={profile.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-3">
                               <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
                                 <UserIcon className="w-4 h-4 text-slate-400" />
@@ -510,7 +507,7 @@ const UsuariosPage = () => {
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-bold text-slate-600">
                                 {profile.username ? `@${profile.username}` : '---'}
@@ -526,7 +523,7 @@ const UsuariosPage = () => {
                               )}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-slate-600">{profile.email}</span>
                               {showEditButtons && (
@@ -540,7 +537,7 @@ const UsuariosPage = () => {
                               )}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-slate-600">{profile.phone || '---'}</span>
                               {showEditButtons && (
@@ -554,7 +551,7 @@ const UsuariosPage = () => {
                               )}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <span className={cn(
                               "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all",
                               profile.role === 'desenvolvedor'
@@ -567,21 +564,20 @@ const UsuariosPage = () => {
                               {profile.role === 'desenvolvedor' ? 'Desenvolvedor' : (profile.role === 'admin' ? 'Administrador' : 'Cliente')}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <span className="text-xs text-slate-500">
                               {new Date(profile.created_at).toLocaleDateString('pt-BR')}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-right whitespace-nowrap">
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-2">
                               {showEditButtons && (
                                 <button
                                   onClick={() => openPasswordModal(profile)}
-                                  className="text-xs font-bold px-3 py-2 rounded-lg transition-all text-slate-600 hover:bg-slate-100 flex items-center gap-1"
+                                  className="p-2 rounded-lg transition-all text-blue-600 hover:bg-blue-50 flex items-center justify-center shrink-0"
                                   title="Redefinir Senha"
                                 >
-                                  <Eye className="w-3.5 h-3.5" />
-                                  Redefinir Senha
+                                  <Key className="w-4 h-4" />
                                 </button>
                               )}
                               {showAdminButtons && (
@@ -589,7 +585,7 @@ const UsuariosPage = () => {
                                   onClick={() => openDeleteModal(profile)}
                                   disabled={profile.id === user?.id}
                                   className={cn(
-                                    "p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                                    "p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shrink-0",
                                     "text-red-500 hover:bg-red-50 hover:text-red-600"
                                   )}
                                   title={profile.id === user?.id ? "Você não pode excluir a si mesmo" : "Excluir Usuário"}
@@ -598,18 +594,20 @@ const UsuariosPage = () => {
                                 </button>
                               )}
                               {showAdminButtons && (
-                                <button
-                                  onClick={() => toggleRole(profile.id, profile.role)}
+                                <select
+                                  value={profile.role}
+                                  onChange={(e) => changeRole(profile.id, e.target.value)}
                                   disabled={updatingId === profile.id || profile.id === user?.id}
                                   className={cn(
-                                    "text-xs font-bold px-4 py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed",
-                                    profile.role === 'admin' || profile.role === 'desenvolvedor'
-                                      ? "text-amber-600 hover:bg-amber-50"
-                                      : "text-blue-600 hover:bg-blue-50"
+                                    "text-xs font-bold px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 appearance-none cursor-pointer hover:bg-slate-100 transition-all text-center ml-1",
+                                    updatingId === profile.id && "animate-pulse"
                                   )}
+                                  title="Alterar Nível de Acesso"
                                 >
-                                  {updatingId === profile.id ? 'Atualizando...' : 'Alterar Nível'}
-                                </button>
+                                  <option value="cliente">Cliente</option>
+                                  <option value="admin">Admin</option>
+                                  {currentUserRole === 'desenvolvedor' && <option value="desenvolvedor">Dev</option>}
+                                </select>
                               )}
                             </div>
                           </td>
