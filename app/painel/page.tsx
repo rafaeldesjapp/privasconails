@@ -5,6 +5,7 @@ import { useSupabaseAuth } from '@/hooks/use-supabase';
 import Auth from '@/components/Auth';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
+import PaymentModal from '@/components/PaymentModal';
 import { supabase } from '@/lib/supabase';
 import { format, startOfMonth, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -28,6 +29,9 @@ export default function MeuPainel() {
   const [servicosConcluidos, setServicosConcluidos] = useState(0);
   const [proximosAgendamentos, setProximosAgendamentos] = useState<any[]>([]);
   const [atividadesRecentes, setAtividadesRecentes] = useState<any[]>([]);
+  
+  const [selectedPayment, setSelectedPayment] = useState<any>(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -75,7 +79,7 @@ export default function MeuPainel() {
         // 4. Próximos Agendamentos Reais (Limite 3)
         let qProximos = supabase
           .from('agendamentos')
-          .select('id, client_name, service, date, time, status, user_id')
+          .select('id, client_name, service, date, time, status, user_id, payment_method')
           .gte('date', hojeStr)
           .neq('status', 'bloqueado')
           .neq('status', 'cancelado')
@@ -189,26 +193,35 @@ export default function MeuPainel() {
                   {proximosAgendamentos.map((agend) => {
                     const dataObj = parseISO(agend.date);
                     return (
-                      <div key={agend.id} className="p-3 sm:p-4 flex items-center justify-between border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                      <div key={agend.id} className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors gap-3 sm:gap-0">
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-12 rounded-xl bg-slate-100 flex flex-col items-center justify-center text-slate-500 min-w-[3rem]">
                             <span className="text-[10px] font-bold uppercase leading-none">{format(dataObj, 'MMM', { locale: ptBR })}</span>
                             <span className="text-lg font-black leading-none">{format(dataObj, 'dd')}</span>
                           </div>
                           <div>
-                            <p className="font-bold text-slate-800">{agend.client_name}</p>
-                            <p className="text-xs text-slate-500 flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> {agend.time} - {agend.service}
+                            <p className="font-bold text-slate-800 line-clamp-1">{agend.client_name}</p>
+                            <p className="text-xs text-slate-500 flex items-center gap-1 line-clamp-1">
+                              <Clock className="w-3 h-3 shrink-0" /> {agend.time} - {agend.service}
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${
+                        <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2 pl-[4rem] sm:pl-0">
+                          {(!agend.payment_method && agend.status === 'agendado') && (
+                            <button 
+                              onClick={() => { setSelectedPayment(agend); setIsPaymentModalOpen(true); }}
+                              className="bg-black text-white text-[10px] sm:text-xs font-bold px-3 py-1.5 sm:py-2 rounded-lg flex items-center justify-center hover:bg-slate-800 transition-colors shadow-md"
+                            >
+                              PAGAR OPCIONAL
+                            </button>
+                          )}
+                          <span className={`px-2.5 sm:px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border truncate ${
+                            agend.payment_method ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
                             agend.status === 'agendado' ? 'bg-blue-50 text-blue-700 border-blue-100' : 
                             agend.status === 'concluido' ? 'bg-green-50 text-green-700 border-green-100' :
                             'bg-red-50 text-red-700 border-red-100'
                           }`}>
-                            {agend.status}
+                            {agend.payment_method ? 'Pago Online' : agend.status}
                           </span>
                         </div>
                       </div>
@@ -254,6 +267,18 @@ export default function MeuPainel() {
           </div>
         </main>
       </div>
+      
+      {/* Módulo de Pagamento Injetado Globalmente */}
+      <PaymentModal 
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        serviceName={selectedPayment?.service || ''}
+        amount={50.00} 
+        appointmentId={selectedPayment?.id || ''}
+        onPaymentSuccess={(method) => {
+           setProximosAgendamentos(prev => prev.map(p => p.id === selectedPayment?.id ? { ...p, payment_method: `Online (${method})` } : p));
+        }}
+      />
     </div>
   );
 }

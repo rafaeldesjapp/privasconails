@@ -803,16 +803,22 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">Forma de Pagamento</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {['Pix', 'Dinheiro', 'Crédito', 'Débito'].map(method => (
+                  {[
+                    { label: 'Mercado Pago', id: 'MercadoPago' },
+                    { label: 'PicPay (App)', id: 'PicPay' },
+                    { label: 'Maquininha', id: 'Maquina' },
+                    { label: 'Dinheiro', id: 'Dinheiro' },
+                    { label: 'Pix Direto', id: 'Pix' }
+                  ].map(method => (
                     <button
-                      key={method}
-                      onClick={() => setCheckoutPayment(method)}
+                      key={method.id}
+                      onClick={() => setCheckoutPayment(method.id)}
                       className={cn(
-                        "py-2 rounded-lg text-sm font-medium transition-all border",
-                        checkoutPayment === method ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                        "py-2 px-1 rounded-lg text-xs sm:text-sm font-medium transition-all border",
+                        checkoutPayment === method.id ? "bg-green-50 border-green-200 text-green-700 font-bold shadow-sm" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                       )}
                     >
-                      {method}
+                      {method.label}
                     </button>
                   ))}
                 </div>
