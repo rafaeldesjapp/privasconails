@@ -6,7 +6,7 @@ import Sidebar from '@/components/Sidebar';
 import { useSupabaseAuth } from '@/hooks/use-supabase';
 import Auth from '@/components/Auth';
 import { supabase } from '@/lib/supabase';
-import { MessageCircle, Send, Trash2, User as UserIcon, Paperclip, Smile, X, Loader2, PlayCircle } from 'lucide-react';
+import { MessageCircle, Send, Trash2, User as UserIcon, Paperclip, Smile, X, Loader2, PlayCircle, Pencil } from 'lucide-react';
 import { format, differenceInHours } from 'date-fns';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { cn } from '@/lib/utils';
@@ -36,6 +36,7 @@ export default function PapoDeSalaoPage() {
   // Anexos e Emojis
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [attachedFile, setAttachedFile] = useState<{ file: File, preview: string, type: 'video'|'image' } | null>(null);
 
@@ -60,6 +61,9 @@ export default function PapoDeSalaoPage() {
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_mensagens' }, (payload: any) => {
         setMessages(prev => prev.filter(msg => msg.id !== payload.old.id));
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_mensagens' }, (payload: any) => {
+        setMessages(prev => prev.map(msg => msg.id === payload.new.id ? { ...msg, texto: payload.new.texto, media_url: payload.new.media_url } : msg));
       })
       .subscribe();
 
@@ -195,6 +199,8 @@ export default function PapoDeSalaoPage() {
   const cancelAttachment = () => {
     if (attachedFile?.preview) URL.revokeObjectURL(attachedFile.preview);
     setAttachedFile(null);
+    setEditingId(null);
+    setNewMessage('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -230,14 +236,22 @@ export default function PapoDeSalaoPage() {
       // 2. Inserir a mensagem no DB
       const textoObj = newMessage.trim() || null;
       
-      const { error } = await supabase.from('chat_mensagens').insert([{
-        user_id: user.id,
-        texto: textoObj,
-        media_url: finalMediaUrl,
-        media_type: finalMediaType,
-      }]);
-      
-      if (error) throw error;
+      if (editingId) {
+        const { error } = await supabase.from('chat_mensagens').update({
+          texto: textoObj,
+          ...(finalMediaUrl && { media_url: finalMediaUrl }),
+          ...(finalMediaType && { media_type: finalMediaType })
+        }).eq('id', editingId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('chat_mensagens').insert([{
+          user_id: user.id,
+          texto: textoObj,
+          media_url: finalMediaUrl,
+          media_type: finalMediaType,
+        }]);
+        if (error) throw error;
+      }
       
       // Limpa os states pós-sucesso
       setNewMessage('');
@@ -255,19 +269,22 @@ export default function PapoDeSalaoPage() {
     }
   };
 
-  const handleDeleteMessage = async (id: string, media_url: string | null) => {
-    if (role !== 'admin') return;
-    if (confirm("Você sendo Admin, tem o poder de apagar isso para todo mundo. Tem certeza?")) {
+  const handleEditMessage = (msg: ChatMessage) => {
+    if (role !== 'admin' && user.id !== msg.user_id) return;
+    setEditingId(msg.id);
+    setNewMessage(msg.texto || '');
+  };
+
+  const handleDeleteMessage = async (msg: ChatMessage) => {
+    if (role !== 'admin' && user.id !== msg.user_id) return;
+    if (confirm("Tem certeza que deseja apagar esta mensagem para todos?")) {
       try {
-        // Se houver media_url, você idealmente devia deletar fisicamente do Storage aqui antes.
-        // O DB row apaga agora:
-        const { error } = await supabase.from('chat_mensagens').delete().eq('id', id);
+        const { error } = await supabase.from('chat_mensagens').delete().eq('id', msg.id);
         if (error) throw error;
 
-        // Limpeza do aquivo (Opcional Client-side se der erro de cors ele não liga)
-        if (media_url) {
+        if (msg.media_url) {
           try {
-             const basePath = media_url.split('/chat_media/')[1];
+             const basePath = msg.media_url.split('/chat_media/')[1];
              if (basePath) supabase.storage.from('chat_media').remove([basePath]).catch(()=>{});
           } catch(e) {}
         }
@@ -440,15 +457,24 @@ export default function PapoDeSalaoPage() {
                         </svg>
                       )}
 
-                      {/* Botão de Apagar Global (Admin) */}
-                      {role === 'admin' && (
-                        <button 
-                          onClick={() => handleDeleteMessage(msg.id, msg.media_url)}
-                          className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity ml-1 p-0.5"
-                          title="Apagar para todos (Admin)"
-                        >
-                          <Trash2 className="w-[11px] h-[11px]" />
-                        </button>
+                      {/* Botoes de Acao da Mensagem */}
+                      {(role === 'admin' || isMe) && (
+                        <div className="flex items-center space-x-0.5">
+                          <button 
+                            onClick={() => handleEditMessage(msg)}
+                            className="opacity-0 group-hover:opacity-100 text-blue-500 hover:text-blue-700 transition-opacity ml-1 p-0.5"
+                            title="Editar"
+                          >
+                            <Pencil className="w-[11px] h-[11px]" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteMessage(msg)}
+                            className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity ml-1 p-0.5"
+                            title="Apagar para todos"
+                          >
+                            <Trash2 className="w-[11px] h-[11px]" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -470,6 +496,14 @@ export default function PapoDeSalaoPage() {
                skinTonesDisabled={false}
             />
           </div>
+
+          {/* Se estiver editando, mostra um aviso na Input Bar */}
+          {editingId && (
+            <div className="absolute bottom-[60px] left-0 right-0 z-40 bg-[#f0f2f5] p-2 border-t border-slate-300 shadow-md flex justify-between items-center text-blue-700 text-xs font-bold px-4 animate-slide-up">
+               <span>Editando mensagem...</span>
+               <button onClick={cancelAttachment} className="hover:text-red-600 px-2 py-1 bg-white rounded shadow-sm">Cancelar</button>
+            </div>
+          )}
 
           {/* Pré-visualização de Anexo (Acima da Input Bar) */}
           {attachedFile && (
