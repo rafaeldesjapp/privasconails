@@ -122,11 +122,17 @@ export default function TabelaPrecos() {
   const saveData = async () => {
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('configuracoes')
-        .upsert({ id: 'tabela_precos', valor: draft }, { onConflict: 'id' });
+      const res = await fetch('/api/configuracoes/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: 'tabela_precos', valor: draft })
+      });
 
-      if (error) throw error;
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Erro ao salvar configurações');
+      }
+
       setCategories(draft);
       setEditMode(false);
       showToast('success', 'Tabela de preços salva com sucesso!');

@@ -37,12 +37,19 @@ export default function ConfiguracoesPage() {
   const saveConfig = async () => {
     setSavingConfig(true);
     const num = whatsappNumber.replace(/\D/g, '');
-    const { error } = await supabase.from('configuracoes')
-      .upsert({ id: 'whatsapp_studio', valor: JSON.stringify(num) }, { onConflict: 'id' });
-    
-    if (error) alert('Erro ao salvar configuração. Verifique a tabela no Supabase.');
-    else alert('Número do WhatsApp salvo com sucesso!');
-    setSavingConfig(false);
+    try {
+      const res = await fetch('/api/configuracoes/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: 'whatsapp_studio', valor: JSON.stringify(num) })
+      });
+      if (!res.ok) throw new Error('Erro ao salvar configuração.');
+      alert('Número do WhatsApp salvo com sucesso!');
+    } catch (err: any) {
+      alert(err.message || 'Erro ao salvar configuração. Verifique a tabela no Supabase.');
+    } finally {
+      setSavingConfig(false);
+    }
   };
 
   useEffect(() => {
