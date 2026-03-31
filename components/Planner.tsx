@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, CheckCircle2, Clock, Plus, Trash2, Calendar as CalIcon, Lock, Unlock, AlertOctagon, Pencil, Save, X, GripVertical } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle2, Clock, Plus, Trash2, Calendar as CalIcon, Lock, Unlock, AlertOctagon, Pencil, Save, X, GripVertical, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { format, addDays, subDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getMonth, getYear } from 'date-fns';
@@ -44,6 +44,9 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   const [loading, setLoading] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [newServices, setNewServices] = useState<{qty: number, name: string}[]>([{qty: 1, name: ''}]);
+  const [clientsList, setClientsList] = useState<{id: string, full_name: string}[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [freeNote, setFreeNote] = useState<string>('');
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editServices, setEditServices] = useState<{qty: number, name: string}[]>([{qty: 1, name: ''}]);
@@ -97,6 +100,14 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
     };
     fetchConfig();
   }, []);
+
+  useEffect(() => {
+    if (isAdminView) {
+      supabase.from('profiles').select('id, full_name').order('full_name').then(({data}) => {
+         if (data) setClientsList(data);
+      });
+    }
+  }, [isAdminView]);
 
   const fetchAgendamentos = async (date: Date) => {
     setLoading(true);
@@ -230,9 +241,11 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   };
 
   const handleBook = async (time: string) => {
-    const finalStr = serializeServices(newServices);
+    const srvStr = serializeServices(newServices);
+    const finalStr = freeNote.trim() ? (srvStr ? `${srvStr} | ${freeNote.trim()}` : freeNote.trim()) : srvStr;
+
     if (!user) return alert('Você precisa estar logado para agendar.');
-    if (!finalStr.trim()) return alert('Por favor, informe o serviço desejado.');
+    if (!finalStr.trim()) return alert('Por favor, informe o serviço desejado ou adicione uma anotação livre.');
 
     // Imposição para clientes (se um número estiver configurado)
     if (studioWhatsapp && studioWhatsapp.length > 5 && !isAdminView) {
@@ -245,9 +258,13 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
 
   const commitBooking = async (timeStr: string, finalServiceStr: string) => {
     try {
+      const selectedClient = clientsList.find(c => c.id === selectedClientId);
+      const targetUserId = selectedClientId || user.id;
+      const targetClientName = selectedClient ? selectedClient.full_name : (user?.user_metadata?.full_name || user.email);
+
       const novaReserva = {
-        user_id: user.id,
-        client_name: user?.user_metadata?.full_name || user.email,
+        user_id: targetUserId,
+        client_name: targetClientName,
         service: finalServiceStr,
         date: format(currentDate, 'yyyy-MM-dd'),
         time: timeStr,
@@ -373,12 +390,15 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   };
 
   const handleEditSave = async (id: string) => {
-    const finalStr = serializeServices(editServices);
+    const srvStr = serializeServices(editServices);
+    const finalStr = freeNote.trim() ? (srvStr ? `${srvStr} | ${freeNote.trim()}` : freeNote.trim()) : srvStr;
+
     if (!finalStr.trim()) return;
     try {
       const { error } = await supabase.from('agendamentos').update({ service: finalStr }).eq('id', id);
       if (error) throw error;
       setEditingId(null);
+      setFreeNote('');
       fetchAgendamentos(currentDate);
     } catch (err: any) {
       alert('Erro ao editar: ' + err.message);
@@ -721,6 +741,16 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                           )}
                                         </div>
                                       ))}
+
+                                      <div className="flex mt-1">
+                                        <input 
+                                          type="text"
+                                          placeholder="Anotação livre..."
+                                          value={freeNote}
+                                          onChange={(e) => setFreeNote(e.target.value)}
+                                          className="flex-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded outline-none text-xs text-slate-700"
+                                        />
+                                      </div>
                                       
                                       <div className="flex justify-between items-center mt-1">
                                         <button 
@@ -772,7 +802,14 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                           )}
                                           {(isAdminView || isMine) && (
                                             <button onClick={() => { 
-                                              setEditServices(parseServicesString(age.service));
+                                              if (age.service.includes(' | ')) {
+                                                const parts = age.service.split(' | ');
+                                                setEditServices(parseServicesString(parts[0]));
+                                                setFreeNote(parts[1] || '');
+                                              } else {
+                                                setEditServices(parseServicesString(age.service));
+                                                setFreeNote('');
+                                              }
                                               setEditingId(age.id); 
                                             }} className="p-1 text-blue-500 hover:bg-blue-200 rounded" title="Editar Serviço">
                                               <Pencil className="w-4 h-4" />
@@ -790,6 +827,19 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                 <div className="flex-1 flex items-center justify-between">
                                   {isSelected ? (
                                     <div className="flex-1 flex flex-col gap-1 ml-2 mb-1 bg-white p-2 rounded-lg shadow-sm border border-rose-200 z-20 relative">
+                                      {isAdminView && (
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <Users className="w-4 h-4 text-slate-400" />
+                                          <select 
+                                            className="flex-1 border border-slate-200 rounded px-2 py-1 outline-none text-xs text-slate-600 bg-slate-50"
+                                            value={selectedClientId}
+                                            onChange={e => setSelectedClientId(e.target.value)}
+                                          >
+                                            <option value="">(Reservar para Mim)</option>
+                                            {clientsList.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+                                          </select>
+                                        </div>
+                                      )}
                                       {newServices.map((srv, idx) => (
                                         <div key={idx} className="flex items-center gap-2">
                                           <select
@@ -827,6 +877,16 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                           )}
                                         </div>
                                       ))}
+
+                                      <div className="flex mt-1">
+                                        <input 
+                                          type="text"
+                                          placeholder="Anotação livre..."
+                                          value={freeNote}
+                                          onChange={(e) => setFreeNote(e.target.value)}
+                                          className="flex-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded outline-none text-xs text-slate-700"
+                                        />
+                                      </div>
 
                                       <div className="flex justify-between items-center mt-1">
                                         <button 
