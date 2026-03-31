@@ -29,7 +29,7 @@ export default function AgendamentosPage() {
         <Header onMenuClick={() => setIsSidebarOpen(true)} />
         
         <main className="flex-1 overflow-hidden relative bg-gradient-to-br from-pink-400 via-orange-300 to-yellow-300">
-           <Planner role={role} user={user} isAdminView={role === 'admin'} />
+           <Planner role={role} user={user} isAdminView={role === 'admin' || role === 'desenvolvedor'} />
         </main>
       </div>
     </div>

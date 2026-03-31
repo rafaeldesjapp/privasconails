@@ -252,7 +252,7 @@ const PortfolioPage = () => {
                     <Instagram className="w-5 h-5 text-pink-500" />
                     Ver no Instagram
                   </a>
-                  {role === 'admin' ? (
+                  {role === 'admin' || role === 'desenvolvedor' ? (
                     <button 
                       onClick={() => setIsModalOpen(true)}
                       className="flex items-center gap-2 px-8 py-4 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 hover:scale-105 transition-all shadow-xl shadow-purple-500/20"
@@ -342,7 +342,7 @@ const PortfolioPage = () => {
                           </span>
                           <div className="flex items-center gap-2">
                             <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                            {role === 'admin' && (
+                            {(role === 'admin' || role === 'desenvolvedor') && (
                               <button 
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -369,7 +369,7 @@ const PortfolioPage = () => {
                 <Camera className="w-12 h-12 text-slate-300 mx-auto mb-4" />
                 <h3 className="text-xl font-bold text-slate-800 mb-2">Nenhum trabalho encontrado</h3>
                 <p className="text-slate-500">
-                  {role === 'admin' 
+                  {role === 'admin' || role === 'desenvolvedor'
                     ? 'Comece adicionando seu primeiro trabalho ao portfólio.' 
                     : 'Em breve teremos novos trabalhos incríveis por aqui!'}
                 </p>

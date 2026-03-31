@@ -23,7 +23,7 @@ export default function ConfiguracoesPage() {
   const [savingConfig, setSavingConfig] = useState(false);
 
   useEffect(() => {
-    if (currentUserRole === 'admin') {
+    if (currentUserRole === 'admin' || currentUserRole === 'desenvolvedor') {
       const loadSettings = async () => {
         const { data } = await supabase.from('configuracoes').select('valor').eq('id', 'whatsapp_studio').maybeSingle();
         if (data?.valor) {
@@ -54,13 +54,13 @@ export default function ConfiguracoesPage() {
 
   useEffect(() => {
     // Se logado e NÃO for admin, joga pra dashboard (Proteção)
-    if (!authLoading && user && currentUserRole !== 'admin') {
+    if (!authLoading && user && currentUserRole !== 'admin' && currentUserRole !== 'desenvolvedor') {
       router.push('/');
     }
   }, [user, currentUserRole, authLoading, router]);
 
   useEffect(() => {
-    if (currentUserRole !== 'admin') return;
+    if (currentUserRole !== 'admin' && currentUserRole !== 'desenvolvedor') return;
 
     const carregarLogs = async () => {
       setLogsLoading(true);
@@ -100,7 +100,7 @@ export default function ConfiguracoesPage() {
   }
 
   // Double check do renderizador caso o hook useEffect demore
-  if (currentUserRole !== 'admin') {
+  if (currentUserRole !== 'admin' && currentUserRole !== 'desenvolvedor') {
     return null;
   }
 

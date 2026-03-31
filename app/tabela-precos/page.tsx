@@ -76,7 +76,7 @@ export default function TabelaPrecos() {
   const { user, role, loading } = useSupabaseAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const isAdmin = role === 'admin';
+  const isAdmin = role === 'admin' || role === 'desenvolvedor';
 
   // Estado dos dados
   const [categories, setCategories] = useState<PriceCategory[]>(DEFAULT_CATEGORIES);
@@ -95,7 +95,7 @@ export default function TabelaPrecos() {
         .eq('id', 'tabela_precos')
         .maybeSingle();
 
-      if (!error && data?.valor) {
+      if (!error && data?.valor && Array.isArray(data.valor)) {
         setCategories(data.valor);
       }
     } catch {

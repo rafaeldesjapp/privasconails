@@ -55,7 +55,7 @@ export default function MeuPainel() {
         if (isMounted) setAgendamentosHoje(hojeResult.count || 0);
 
         // 2. Novos Clientes (Só admin vê todos. Cadastro no mês)
-        if (role === 'admin') {
+        if (role === 'admin' || role === 'desenvolvedor') {
           const clientesR = await supabase
             .from('profiles')
             .select('*', { count: 'exact', head: true })
@@ -128,12 +128,12 @@ export default function MeuPainel() {
 
   const estatisticas = [
     { name: 'Agendamentos Hoje', value: agendamentosHoje.toString(), icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { name: role === 'admin' ? 'Novos Clientes (Mês)' : 'Seus Clientes', value: novosClientes.toString(), icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { name: role === 'admin' || role === 'desenvolvedor' ? 'Novos Clientes (Mês)' : 'Seus Clientes', value: novosClientes.toString(), icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
     { name: 'Serviços Finalizados (Mês)', value: servicosConcluidos.toString(), icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50' },
     { name: 'Futuros Confirmados', value: proximosAgendamentos.length.toString(), icon: TrendingUp, color: 'text-pink-600', bg: 'bg-pink-50' },
   ];
 
-  const cardsParaExibir = role === 'admin' ? estatisticas : estatisticas.filter(e => e.name !== 'Seus Clientes');
+  const cardsParaExibir = role === 'admin' || role === 'desenvolvedor' ? estatisticas : estatisticas.filter(e => e.name !== 'Seus Clientes');
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -147,7 +147,7 @@ export default function MeuPainel() {
             {/* Boas-vindas */}
             <div>
               <h1 className="text-2xl sm:text-3xl font-black text-slate-800 font-headline">
-                {role === 'admin' ? 'Olá, Priscila!' : `Olá, ${user.user_metadata?.full_name?.split(' ')[0] || 'Cliente'}!`}
+                {role === 'admin' || role === 'desenvolvedor' ? 'Olá, Priscila!' : `Olá, ${user.user_metadata?.full_name?.split(' ')[0] || 'Cliente'}!`}
               </h1>
               <p className="text-sm sm:text-base text-slate-500">Aqui está o resumo do seu estúdio em tempo real.</p>
             </div>

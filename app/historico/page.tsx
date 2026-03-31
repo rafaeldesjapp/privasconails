@@ -59,7 +59,7 @@ export default function HistoricoPage() {
 
       if (role === 'cliente') {
         query = query.eq('user_id', user.id);
-      } else if (role === 'admin') {
+      } else if (role === 'admin' || role === 'desenvolvedor') {
         if (filterDateStart) query = query.gte('date', filterDateStart);
         if (filterDateEnd) query = query.lte('date', filterDateEnd);
         if (filterPayment) query = query.eq('payment_method', filterPayment);
@@ -143,11 +143,11 @@ export default function HistoricoPage() {
                   Histórico de Atendimentos
                 </h1>
                 <p className="text-slate-500 mt-1">
-                  {role === 'admin' ? 'Controle consolidado de todos os serviços realizados e faturados.' : 'Seus recibos e serviços anteriores no estúdio.'}
+                  {role === 'admin' || role === 'desenvolvedor' ? 'Controle consolidado de todos os serviços realizados e faturados.' : 'Seus recibos e serviços anteriores no estúdio.'}
                 </p>
               </div>
               
-              {role === 'admin' && (
+              {(role === 'admin' || role === 'desenvolvedor') && (
                 <button 
                   onClick={handlePrint}
                   className="print:hidden bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold py-2.5 px-6 rounded-xl shadow-sm transition-all flex items-center gap-2 hover:border-slate-300"
@@ -159,7 +159,7 @@ export default function HistoricoPage() {
             </div>
 
             {/* Filtros OTIMIZADOS Administrativos */}
-            {role === 'admin' && (
+            {(role === 'admin' || role === 'desenvolvedor') && (
               <div className="print:hidden bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                 <div className="flex items-center gap-2 mb-2 text-slate-700 font-bold">
                   <Filter className="w-5 h-5" />
@@ -268,7 +268,7 @@ export default function HistoricoPage() {
                     <thead>
                       <tr className="border-b-2 border-slate-100 text-slate-400 font-bold tracking-wide uppercase text-xs">
                         <th className="py-4 px-4 pl-0">Data e Hora</th>
-                        {role === 'admin' && <th className="py-4 px-4">Cliente</th>}
+                        {(role === 'admin' || role === 'desenvolvedor') && <th className="py-4 px-4">Cliente</th>}
                         <th className="py-4 px-4">Serviço Realizado</th>
                         <th className="py-4 px-4">Tempo Total</th>
                         <th className="py-4 px-4 pr-0 text-right">Pagamento</th>
@@ -286,7 +286,7 @@ export default function HistoricoPage() {
                               {item.time}
                             </div>
                           </td>
-                          {role === 'admin' && (
+                          {(role === 'admin' || role === 'desenvolvedor') && (
                             <td className="py-4 px-4 font-medium text-slate-800 flex items-center gap-2 mt-2">
                               {item.client_name}
                             </td>

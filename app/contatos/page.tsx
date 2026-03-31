@@ -106,7 +106,7 @@ const ContatosPage = () => {
         .eq('id', user?.id)
         .single();
 
-      if (profile?.role === 'admin') {
+      if (profile?.role === 'admin' || profile?.role === 'desenvolvedor') {
         // Direct update for admins
         const { error } = await supabase
           .from('profiles')
