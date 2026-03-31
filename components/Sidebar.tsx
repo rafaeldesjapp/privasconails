@@ -89,7 +89,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const filteredNavItems = (role === 'admin' || role === 'desenvolvedor') 
     ? navItems 
     : navItems.filter(item => 
-        ['Meus Trabalhos', 'Tabela de Preços', 'Agendamentos', 'Pagamentos', 'Papo de Salão', 'Histórico'].includes(item.name)
+        ['Meus Trabalhos', 'Tabela de Preços', 'Meu Painel', 'Agendamentos', 'Pagamentos', 'Papo de Salão', 'Histórico'].includes(item.name)
       );
 
   const handleLogout = async () => {

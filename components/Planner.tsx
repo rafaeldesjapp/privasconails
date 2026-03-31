@@ -43,10 +43,10 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [newService, setNewService] = useState('');
+  const [newServices, setNewServices] = useState<{qty: number, name: string}[]>([{qty: 1, name: ''}]);
   
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editServiceText, setEditServiceText] = useState('');
+  const [editServices, setEditServices] = useState<{qty: number, name: string}[]>([{qty: 1, name: ''}]);
   
   const [blockedDays, setBlockedDays] = useState<{id: string, date: string}[]>([]);
 
@@ -55,9 +55,10 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   const [dragSource, setDragSource] = useState<Agendamento | null>(null);
   const [dragCurrentTime, setDragCurrentTime] = useState<string | null>(null);
 
-  // Estados do WhatsApp
+  // Estados do WhatsApp e Serviços
   const [studioWhatsapp, setStudioWhatsapp] = useState<string | null>(null);
   const [pendingBooking, setPendingBooking] = useState<{ time: string, service: string } | null>(null);
+  const [availableServices, setAvailableServices] = useState<string[]>([]);
 
   // Estados do Checkout
   const [checkoutData, setCheckoutData] = useState<Agendamento | null>(null);
@@ -67,11 +68,32 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   const isDayBlocked = agendamentos.some(a => a.time === 'ALL' && a.status === 'bloqueado');
   const dayBlockId = agendamentos.find(a => a.time === 'ALL' && a.status === 'bloqueado')?.id;
 
-  // Busca número do WhatsApp
+  // Busca número do WhatsApp e Tabela de Preços
   useEffect(() => {
     const fetchConfig = async () => {
-      const { data } = await supabase.from('configuracoes').select('valor').eq('chave', 'whatsapp_studio').single();
-      if (data?.valor) setStudioWhatsapp(data.valor.replace(/"/g, ''));
+      // Usando .or para buscar as duas chaves de uma vez, seja chave ou id
+      const { data } = await supabase.from('configuracoes').select('*');
+      
+      if (data) {
+        const whatsappConfig = data.find((c: any) => c.chave === 'whatsapp_studio' || c.id === 'whatsapp_studio');
+        if (whatsappConfig?.valor) setStudioWhatsapp(whatsappConfig.valor.replace(/"/g, ''));
+
+        const precosConfig = data.find((c: any) => c.id === 'tabela_precos' || c.chave === 'tabela_precos');
+        if (precosConfig?.valor && Array.isArray(precosConfig.valor)) {
+          const flat: string[] = [];
+          precosConfig.valor.forEach((cat: any) => {
+            if (cat.itens && Array.isArray(cat.itens)) {
+              cat.itens.forEach((item: any) => {
+                if (item.nome) flat.push(item.nome);
+              });
+            }
+          });
+          if (flat.length > 0) setAvailableServices(flat);
+          else setAvailableServices(['Unhas Simples', 'Banho de Gel', 'Outros']);
+        } else {
+          setAvailableServices(['Unhas Simples', 'Banho de Gel', 'Outros']);
+        }
+      }
     };
     fetchConfig();
   }, []);
@@ -194,25 +216,39 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
     setCurrentDate(prev => subDays(prev, 1));
   };
 
+  const serializeServices = (srvs: {qty: number, name: string}[]) => {
+    return srvs.filter(s => s.name.trim() !== '').map(s => s.qty > 1 ? `${s.qty}x ${s.name}` : s.name).join(' + ');
+  };
+
+  const parseServicesString = (str: string) => {
+    if (!str) return [{ qty: 1, name: '' }];
+    return str.split(' + ').map(p => {
+      const match = p.match(/^(\d+)x\s+(.*)$/);
+      if (match) return { qty: Number(match[1]), name: match[2] };
+      return { qty: 1, name: p };
+    });
+  };
+
   const handleBook = async (time: string) => {
+    const finalStr = serializeServices(newServices);
     if (!user) return alert('Você precisa estar logado para agendar.');
-    if (!newService.trim()) return alert('Por favor, informe o serviço desejado.');
+    if (!finalStr.trim()) return alert('Por favor, informe o serviço desejado.');
 
     // Imposição para clientes (se um número estiver configurado)
     if (studioWhatsapp && studioWhatsapp.length > 5 && !isAdminView) {
-      setPendingBooking({ time, service: newService });
+      setPendingBooking({ time, service: finalStr });
       return;
     }
 
-    commitBooking(time, newService);
+    commitBooking(time, finalStr);
   };
 
-  const commitBooking = async (timeStr: string, serviceStr: string) => {
+  const commitBooking = async (timeStr: string, finalServiceStr: string) => {
     try {
       const novaReserva = {
         user_id: user.id,
         client_name: user?.user_metadata?.full_name || user.email,
-        service: serviceStr,
+        service: finalServiceStr,
         date: format(currentDate, 'yyyy-MM-dd'),
         time: timeStr,
         status: 'agendado'
@@ -222,7 +258,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       if (error) throw error;
       
       setSelectedSlot(null);
-      setNewService('');
+      setNewServices([{qty: 1, name: availableServices[0] || ''}]);
       setPendingBooking(null);
       fetchAgendamentos(currentDate);
       fetchBlockedDays(currentDate);
@@ -337,9 +373,10 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   };
 
   const handleEditSave = async (id: string) => {
-    if (!editServiceText.trim()) return;
+    const finalStr = serializeServices(editServices);
+    if (!finalStr.trim()) return;
     try {
-      const { error } = await supabase.from('agendamentos').update({ service: editServiceText }).eq('id', id);
+      const { error } = await supabase.from('agendamentos').update({ service: finalStr }).eq('id', id);
       if (error) throw error;
       setEditingId(null);
       fetchAgendamentos(currentDate);
@@ -646,20 +683,61 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                   isMine || isAdminView ? 'bg-gradient-to-r from-rose-100 to-orange-100 text-rose-700 shadow-sm border border-rose-200' : 'bg-slate-100 text-slate-500 line-through'
                                 )}>
                                   {editingId === age.id ? (
-                                    <div className="flex-1 flex items-center gap-2 mr-2">
-                                      <input 
-                                        type="text" 
-                                        className="flex-1 bg-white/60 px-2 py-0.5 rounded outline-none text-sm text-slate-800"
-                                        value={editServiceText}
-                                        onChange={(e) => setEditServiceText(e.target.value)}
-                                        autoFocus
-                                      />
-                                      <button onClick={() => handleEditSave(age.id)} className="p-1 text-blue-600 hover:bg-blue-100 rounded bg-white shadow-sm" title="Salvar">
-                                        <Save className="w-3.5 h-3.5" />
-                                      </button>
-                                      <button onClick={() => setEditingId(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded bg-white shadow-sm" title="Cancelar">
-                                        <X className="w-3.5 h-3.5" />
-                                      </button>
+                                    <div className="flex-1 flex flex-col gap-1 mr-2 mt-1">
+                                      {editServices.map((srv, idx) => (
+                                        <div key={idx} className="flex flex-1 items-center gap-2">
+                                          <select
+                                            className="w-16 bg-white border border-slate-200 px-2 py-1 rounded outline-none text-xs text-slate-700 font-bold"
+                                            value={srv.qty}
+                                            onChange={(e) => {
+                                              const ns = [...editServices];
+                                              ns[idx].qty = Number(e.target.value);
+                                              setEditServices(ns);
+                                            }}
+                                          >
+                                            {[...Array(10)].map((_, i) => (
+                                              <option key={i+1} value={i+1}>{i+1}x</option>
+                                            ))}
+                                          </select>
+                                          <select
+                                            className="flex-1 bg-white border border-slate-200 px-2 py-1 rounded outline-none text-xs text-slate-700 font-bold"
+                                            value={srv.name}
+                                            onChange={(e) => {
+                                              const ns = [...editServices];
+                                              ns[idx].name = e.target.value;
+                                              setEditServices(ns);
+                                            }}
+                                            autoFocus={idx === 0}
+                                          >
+                                            <option value="" disabled>Selecione um Serviço...</option>
+                                            {availableServices.map((svc: string, sIdx: number) => (
+                                               <option key={sIdx} value={svc}>{svc}</option>
+                                            ))}
+                                          </select>
+                                          {editServices.length > 1 && (
+                                            <button onClick={() => setEditServices(editServices.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-500 p-1">
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      ))}
+                                      
+                                      <div className="flex justify-between items-center mt-1">
+                                        <button 
+                                          onClick={() => setEditServices([...editServices, {qty: 1, name: availableServices[0] || ''}])}
+                                          className="text-xs font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 bg-rose-50 px-2 py-1 rounded"
+                                        >
+                                          <Plus className="w-3 h-3" /> Adicionar
+                                        </button>
+                                        <div className="flex items-center gap-1">
+                                          <button onClick={() => handleEditSave(age.id)} className="p-1 text-blue-600 hover:bg-blue-100 rounded bg-white shadow-sm" title="Salvar">
+                                            <Save className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button onClick={() => setEditingId(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded bg-white shadow-sm" title="Cancelar">
+                                            <X className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      </div>
                                     </div>
                                   ) : (
                                     <>
@@ -693,7 +771,10 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                             </button>
                                           )}
                                           {(isAdminView || isMine) && (
-                                            <button onClick={() => { setEditingId(age.id); setEditServiceText(age.service); }} className="p-1 text-blue-500 hover:bg-blue-200 rounded" title="Editar Serviço">
+                                            <button onClick={() => { 
+                                              setEditServices(parseServicesString(age.service));
+                                              setEditingId(age.id); 
+                                            }} className="p-1 text-blue-500 hover:bg-blue-200 rounded" title="Editar Serviço">
                                               <Pencil className="w-4 h-4" />
                                             </button>
                                           )}
@@ -708,28 +789,69 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                               ) : !showPreviewGhost && (
                                 <div className="flex-1 flex items-center justify-between">
                                   {isSelected ? (
-                                    <div className="flex-1 flex items-center gap-2 ml-2 mb-1 bg-white p-1 rounded-lg shadow-sm border border-rose-200 z-20 relative">
-                                      <input 
-                                        type="text" 
-                                        placeholder="Serviço..." 
-                                        className="flex-1 w-full bg-transparent px-2 py-1 outline-none text-sm text-slate-700 font-medium placeholder:text-slate-300"
-                                        value={newService}
-                                        onChange={(e) => setNewService(e.target.value)}
-                                        autoFocus
-                                      />
-                                      <button 
-                                        onClick={() => handleBook(time)}
-                                        className="bg-rose-500 text-white px-2 py-1 rounded text-xs font-bold shadow hover:bg-rose-600 transition-colors shrink-0"
-                                      >
-                                        Salvar
-                                      </button>
-                                      <button onClick={() => setSelectedSlot(null)} className="p-1 text-slate-400 hover:text-slate-600 shrink-0">
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
+                                    <div className="flex-1 flex flex-col gap-1 ml-2 mb-1 bg-white p-2 rounded-lg shadow-sm border border-rose-200 z-20 relative">
+                                      {newServices.map((srv, idx) => (
+                                        <div key={idx} className="flex items-center gap-2">
+                                          <select
+                                            className="w-16 bg-slate-50 border border-slate-200 px-2 py-1.5 rounded-md outline-none text-xs text-slate-700 font-bold"
+                                            value={srv.qty}
+                                            onChange={(e) => {
+                                              const ns = [...newServices];
+                                              ns[idx].qty = Number(e.target.value);
+                                              setNewServices(ns);
+                                            }}
+                                          >
+                                            {[...Array(10)].map((_, i) => (
+                                              <option key={i+1} value={i+1}>{i+1}x</option>
+                                            ))}
+                                          </select>
+                                          <select
+                                            className="flex-1 w-full bg-slate-50 border border-slate-200 px-2 py-1.5 rounded-md outline-none text-xs text-slate-700 font-bold focus:border-rose-300 transition-colors"
+                                            value={srv.name}
+                                            onChange={(e) => {
+                                              const ns = [...newServices];
+                                              ns[idx].name = e.target.value;
+                                              setNewServices(ns);
+                                            }}
+                                            autoFocus={idx === 0}
+                                          >
+                                            <option value="" disabled>Selecione um Serviço...</option>
+                                            {availableServices.map((svc: string, sIdx: number) => (
+                                               <option key={sIdx} value={svc}>{svc}</option>
+                                            ))}
+                                          </select>
+                                          {newServices.length > 1 && (
+                                            <button onClick={() => setNewServices(newServices.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-500 p-1">
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      ))}
+
+                                      <div className="flex justify-between items-center mt-1">
+                                        <button 
+                                          onClick={() => setNewServices([...newServices, {qty: 1, name: availableServices[0] || ''}])}
+                                          className="text-xs font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 bg-rose-50 px-2 py-1 rounded"
+                                        >
+                                          <Plus className="w-3 h-3" /> Adicionar
+                                        </button>
+                                        
+                                        <div className="flex items-center gap-1">
+                                          <button 
+                                            onClick={() => handleBook(time)}
+                                            className="bg-rose-500 text-white px-2 py-1 rounded text-xs font-bold shadow hover:bg-rose-600 transition-colors shrink-0"
+                                          >
+                                            Salvar
+                                          </button>
+                                          <button onClick={() => setSelectedSlot(null)} className="p-1 text-slate-400 hover:text-slate-600 auto shrink-0">
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      </div>
                                     </div>
                                   ) : (
                                     <button 
-                                      onClick={() => setSelectedSlot(time)}
+                                      onClick={() => { setSelectedSlot(time); setNewServices([{qty: 1, name: availableServices[0] || ''}]); }}
                                       className="flex items-center gap-1 md:gap-2 text-rose-400 md:text-slate-300 hover:text-rose-500 text-sm font-medium ml-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all z-20 relative"
                                     >
                                       <Plus className="w-4 h-4" />

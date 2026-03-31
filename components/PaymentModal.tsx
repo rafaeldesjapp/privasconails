@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, QrCode, CreditCard, CheckCircle2, Copy, ShieldCheck, Lock, Smartphone, Check, Loader2, Info } from 'lucide-react';
+import { X, QrCode, CreditCard, CheckCircle2, Copy, ShieldCheck, Lock, Smartphone, Check, Loader2, Info, Users, Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 
@@ -16,6 +16,11 @@ export default function PaymentModal({ isOpen, onClose, serviceName, amount, app
   const [method, setMethod] = useState<'pix' | 'card' | 'gpay'>('pix');
   const [copied, setCopied] = useState(false);
   const [processing, setProcessing] = useState(false);
+  
+  // Dynamic Pricing
+  const [multiplier, setMultiplier] = useState(1);
+  const [basePrice, setBasePrice] = useState(amount || 50);
+  const [calculatedTotal, setCalculatedTotal] = useState(amount || 50);
   
   // Real PIX Data
   const [pixString, setPixString] = useState('');
@@ -38,9 +43,63 @@ export default function PaymentModal({ isOpen, onClose, serviceName, amount, app
       setProcessing(false);
     } else {
       document.body.style.overflow = '';
+      setMultiplier(1);
     }
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
+
+  // Load real price from DB
+  useEffect(() => {
+    const loadPrice = async () => {
+      const { data } = await supabase.from('configuracoes').select('valor').eq('id', 'tabela_precos').maybeSingle();
+      if (!data?.valor || !Array.isArray(data.valor)) {
+         setBasePrice(amount || 50);
+         return;
+      }
+
+      const parts = serviceName.split(' + ');
+      let totalVal = 0;
+        
+        parts.forEach(part => {
+           let searchName = part;
+           let qty = 1;
+           const match = part.match(/^(\d+)x\s+(.*)$/);
+           if (match) {
+             qty = Number(match[1]);
+             searchName = match[2];
+           }
+           
+           let partPrice = 0;
+           for (const cat of data.valor) {
+             if (cat.itens) {
+               const itMatch = cat.itens.find((i: any) => i.nome === searchName);
+               if (itMatch && itMatch.preco) {
+                  partPrice = Number(itMatch.preco);
+                  break;
+               }
+             }
+           }
+           
+           if (partPrice === 0 && Array.isArray(parts) && parts.length === 1) {
+             partPrice = amount || 50;
+           } else if (partPrice === 0) {
+             partPrice = 50;
+           }
+           
+           totalVal += partPrice * qty;
+        });
+
+        setBasePrice(totalVal);
+    };
+    if (isOpen && serviceName) {
+      loadPrice();
+    }
+  }, [isOpen, serviceName, amount]);
+
+  // Update calculated total
+  useEffect(() => {
+    setCalculatedTotal(basePrice * multiplier);
+  }, [basePrice, multiplier]);
 
   if (!isOpen) return null;
 
@@ -63,8 +122,8 @@ export default function PaymentModal({ isOpen, onClose, serviceName, amount, app
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount: amount || 50,
-          serviceName: serviceName,
+          amount: calculatedTotal,
+          serviceName: multiplier > 1 ? `${multiplier}x ${serviceName}` : serviceName,
           appointmentId: appointmentId,
           method: chosenMethod
         })
@@ -136,10 +195,46 @@ export default function PaymentModal({ isOpen, onClose, serviceName, amount, app
         </div>
 
         <div className="px-6 py-6 border-b border-slate-100 bg-white shrink-0 shadow-[0_10px_20px_rgba(0,0,0,0.02)] relative z-10">
-          <p className="text-sm font-medium text-slate-500 mb-1">Você está pagando por:</p>
-          <div className="flex justify-between items-end">
-            <h2 className="text-xl font-black text-slate-800 line-clamp-1 flex-1 pr-4">{serviceName}</h2>
-            <div className="text-2xl font-black text-blue-600 tabular-nums">{fmtValue(amount)}</div>
+          <p className="text-sm font-medium text-slate-500 mb-2">Você está pagando por:</p>
+          <div className="flex flex-col gap-1.5 mb-4">
+            {serviceName.split(' + ').map((part, idx) => (
+              <div key={idx} className="flex items-center text-slate-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2 shrink-0"></span>
+                <h2 className="text-base font-black line-clamp-1 pr-4">{part}</h2>
+              </div>
+            ))}
+            <div className="flex justify-between items-end mt-2 pt-3 border-t border-slate-100">
+               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Subtotal Base</span>
+               <div className="text-2xl font-black text-blue-600 tabular-nums">{fmtValue(calculatedTotal / multiplier)}</div>
+            </div>
+            {multiplier > 1 && (
+              <div className="flex justify-between items-end">
+                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Final ({multiplier}x)</span>
+                 <div className="text-xl font-black text-blue-800 tabular-nums">{fmtValue(calculatedTotal)}</div>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <div className="flex items-center gap-2 text-slate-600">
+              <Users className="w-4 h-4" />
+              <span className="text-sm font-bold">Pessoas / Multiplicador</span>
+            </div>
+            <div className="flex items-center gap-3 bg-white px-2 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+              <button 
+                onClick={() => setMultiplier(Math.max(1, multiplier - 1))}
+                className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 active:scale-95 transition-all"
+              >
+                <Minus className="w-3 h-3" />
+              </button>
+              <span className="font-black text-sm w-4 text-center tabular-nums">{multiplier}</span>
+              <button 
+                onClick={() => setMultiplier(Math.min(10, multiplier + 1))}
+                className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 active:scale-95 transition-all"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </div>
           </div>
         </div>
 
