@@ -19,9 +19,16 @@ import {
   MessageCircleQuestion,
   X,
   CreditCard,
-  CheckCircle2
+  CheckCircle2,
+  Wallet as WalletIcon,
+  Smartphone,
+  History
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
+
+// Inicializa o Mercado Pago SDK com uma chave pública embutida ou de env
+initMercadoPago(process.env.NEXT_PUBLIC_MP_PUBLIC_KEY || 'TEST-33923f17-b080-455b-bfb3-cd98decf5960', { locale: 'pt-BR' });
 
 // Utilizando a engine do Planner
 const parseServicesObj = (str: string) => {
@@ -49,12 +56,17 @@ export default function ContaPage() {
   
   const [total, setTotal] = useState(0);
 
-  // Dispute / Question Modal
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [disputeMessage, setDisputeMessage] = useState('');
   const [submittingDispute, setSubmittingDispute] = useState(false);
   
   const [paymentAppointmentId, setPaymentAppointmentId] = useState<string | null>(null);
+
+  // Novos Estados de Pagamento
+  const [allowTab, setAllowTab] = useState(false);
+  const [showPaymentOptions, setShowPaymentOptions] = useState(false);
+  const [pixData, setPixData] = useState<{qr_code: string, qr_code_base64: string} | null>(null);
+  const [creatingPreference, setCreatingPreference] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -106,6 +118,13 @@ export default function ContaPage() {
 
   const fetchBill = async (targetId: string) => {
     setViewState('loading');
+    
+    // Busca a permissão de fiado do usuário
+    if (role === 'cliente') {
+       const { data: profile } = await supabase.from('profiles').select('allow_tab').eq('id', targetId).single();
+       if (profile?.allow_tab) setAllowTab(true);
+    }
+    
     // Pegando todos da agenda que estao agendados e sem pagamento
     const { data, error } = await supabase
       .from('agendamentos')
@@ -122,6 +141,8 @@ export default function ContaPage() {
     
     setBillingItems(data || []);
     setViewState('bill');
+    setShowPaymentOptions(false);
+    setPreferenceId(null);
   };
 
   // Calcula os precos recursivamente apenas quando o pricesLookup atualiza ou os billingItems
@@ -358,19 +379,219 @@ export default function ContaPage() {
                        </button>
                     ) : (
                       <>
-                        <button 
-                          onClick={() => window.alert('Integração com MP Multi-item será feita em breve com o PaymentModal')}
-                          className="w-full flex items-center justify-center gap-2 bg-[#009EE3] text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-600 transition-colors"
-                        >
-                          <CreditCard className="w-6 h-6" />
-                          Tudo Certo, Pagar Agora via PIX
-                        </button>
-                        <button 
-                          onClick={() => setShowDisputeModal(true)}
-                          className="w-full flex justify-center text-sm font-bold text-slate-400 hover:text-rose-500 py-3"
-                        >
-                          Encontrou um erro na comanda? Clique aqui.
-                        </button>
+                        {!showPaymentOptions ? (
+                          <button 
+                            onClick={() => setShowPaymentOptions(true)}
+                            className="w-full flex items-center justify-center gap-2 bg-[#009EE3] text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-600 transition-colors"
+                          >
+                            <CreditCard className="w-6 h-6" />
+                            Tudo Certo, Pagar Agora!
+                          </button>
+                        ) : (
+                          <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm animate-fade-in space-y-3">
+                            <h3 className="text-center font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 text-sm">Como você deseja pagar?</h3>
+                            
+                            {/* CHECKOUT TRANSPARENTE: MERCADO PAGO PAYMENT BRICK */}
+                            {pixData ? (
+                               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col items-center gap-4 text-center my-4 relative z-10 w-full animate-in fade-in zoom-in duration-300">
+                                  <h4 className="font-bold text-lg text-slate-800">Pagamento via PIX gerado!</h4>
+                                  <p className="text-sm text-slate-500">Escaneie o QR Code abaixo com o aplicativo do seu banco:</p>
+                                  
+                                  <div className="p-2 bg-white rounded-xl border-2 border-[#009EE3]/20 shadow-sm">
+                                     <img src={`data:image/jpeg;base64,${pixData.qr_code_base64}`} alt="QR Code PIX" className="w-48 h-48 rounded-lg" />
+                                  </div>
+
+                                  <p className="text-sm text-slate-500 font-bold mt-2">Ou copie o código abaixo:</p>
+                                  <div className="w-full relative">
+                                    <input 
+                                      type="text" 
+                                      readOnly 
+                                      value={pixData.qr_code} 
+                                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 pr-24 focus:outline-none" 
+                                    />
+                                    <button 
+                                      onClick={() => { 
+                                          navigator.clipboard.writeText(pixData.qr_code); 
+                                          alert('Código Pix Copiado com Sucesso!'); 
+                                      }}
+                                      className="absolute right-2 top-2 bottom-2 bg-[#009EE3] text-white px-4 py-1 rounded-lg text-xs font-bold hover:bg-[#0080B7] transition-colors"
+                                    >
+                                      Copiar
+                                    </button>
+                                  </div>
+                                  
+                                  <button 
+                                     onClick={() => { 
+                                        setPixData(null); 
+                                        if (role === 'admin' || role === 'desenvolvedor') {
+                                           setSelectedClient(null);
+                                           setViewState('select_client');
+                                        } else {
+                                           fetchBill(user!.id); 
+                                        }
+                                     }} 
+                                     className="mt-4 text-[#009EE3] font-bold text-sm hover:underline"
+                                  >
+                                    Já paguei (Voltar)
+                                  </button>
+                               </div>
+                            ) : (
+                               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden my-4 relative z-10 w-full">
+                                  <Payment
+                                    initialization={{
+                                      amount: Number(total.toFixed(2))
+                                    }}
+                                    customization={{
+                                      paymentMethods: {
+                                        creditCard: "all",
+                                        debitCard: "all",
+                                        ticket: "all",
+                                        bankTransfer: "all",
+                                        mercadoPago: "all",
+                                      },
+                                    }}
+                                    onSubmit={async (param: any) => {
+                                  return new Promise<void>((resolve, reject) => {
+                                    const payload = {
+                                      ...param.formData,
+                                      appointmentIds: billingItems.map((b: any) => b.id)
+                                    };
+                                    
+                                    fetch("/api/pagamentos/process-payment", {
+                                      method: "POST",
+                                      headers: {
+                                        "Content-Type": "application/json",
+                                      },
+                                      body: JSON.stringify(payload),
+                                    })
+                                      .then((res) => res.json())
+                                      .then((response) => {
+                                        if (response.error) {
+                                           alert("Falha no pagamento: " + response.error);
+                                           reject();
+                                        } else if (response.status === 'approved') {
+                                           alert("Pagamento Aprovado com Sucesso!");
+                                           resolve();
+                                           if (role === 'admin' || role === 'desenvolvedor') {
+                                              setSelectedClient(null);
+                                              setViewState('select_client');
+                                           } else {
+                                              fetchBill(user!.id);
+                                           }
+                                        } else if (response.status === 'pending' && response.qr_code) {
+                                           setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64 });
+                                           resolve();
+                                        } else {
+                                           alert("Aviso: Status do pagamento é " + response.status_detail || response.status);
+                                           reject();
+                                        }
+                                      })
+                                      .catch((error) => {
+                                        alert("Falha de rede ao tentar processar cartão.");
+                                        reject();
+                                      });
+                                  });
+                                }}
+                                onError={async (error) => {
+                                  console.error("Erro interno no Brick do MP:", error);
+                                }}
+                                onReady={async () => {
+                                  console.log("Payment Brick Carregado com Sucesso");
+                                }}
+                              />
+                            </div>
+
+                            <button 
+                              type="button"
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                try {
+                                  // Substitui window.confirm para evitar bloqueios silenciosos de navegadores!
+                                  setCreatingPreference(true); // Reusando estado de load para travar tela
+                                  const ids = billingItems.map((b: any) => b.id);
+                                  const req = await fetch('/api/admin/update-agendamento-status', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ appointmentIds: ids, status: 'pendente_dinheiro' })
+                                  });
+                                  const resData = await req.json();
+                                  
+                                  if (!req.ok) {
+                                     alert("Falha no Banco: " + resData.error);
+                                  } else {
+                                     alert('Pendente de pagamento no Caixa Físico!');
+                                     if (role === 'admin' || role === 'desenvolvedor') {
+                                        setSelectedClient(null);
+                                        setViewState('select_client');
+                                     } else {
+                                        fetchBill(user!.id);
+                                     }
+                                  }
+                                } catch (err: any) {
+                                  alert("Erro: " + err.message);
+                                } finally {
+                                  setCreatingPreference(false);
+                                }
+                              }}
+                              className="w-full p-4 border border-green-200 bg-green-50 text-green-700 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-green-100 transition-colors"
+                            >
+                               <Banknote className="w-5 h-5" />
+                               Dinheiro em Espécie (No Caixa)
+                            </button>
+
+                            {allowTab && (
+                              <button 
+                                type="button"
+                                onClick={async (e) => {
+                                    e.preventDefault();
+                                    try {
+                                      setCreatingPreference(true);
+                                      const ids = billingItems.map((b:any) => b.id);
+                                      const req = await fetch('/api/admin/update-agendamento-status', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ appointmentIds: ids, status: 'concluido', paymentMethod: 'fiado' })
+                                      });
+                                      const resData = await req.json();
+
+                                      if (!req.ok) {
+                                         alert("Falha: " + resData.error);
+                                      } else {
+                                         alert('Adicionado à sua conta com sucesso!');
+                                         if (role === 'admin' || role === 'desenvolvedor') {
+                                            setSelectedClient(null);
+                                            setViewState('select_client');
+                                         } else {
+                                            fetchBill(user!.id);
+                                         }
+                                      }
+                                    } catch(err:any) {
+                                       alert("Erro fatal: " + err.message);
+                                    } finally {
+                                      setCreatingPreference(false);
+                                    }
+                                }}
+                                className="w-full p-4 border border-amber-200 bg-amber-50 text-amber-700 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-amber-100 transition-colors"
+                              >
+                                 <History className="w-5 h-5" />
+                                 Pendurar / Colocar na Minha Conta
+                              </button>
+                            )}
+                            
+                            <button onClick={() => setShowPaymentOptions(false)} className="w-full mt-2 text-xs text-slate-400 font-medium py-2 hover:text-slate-600">
+                               Voltar
+                            </button>
+                          </div>
+                        )}
+                        
+                        {!showPaymentOptions && (
+                          <button 
+                            onClick={() => setShowDisputeModal(true)}
+                            className="w-full flex justify-center text-sm font-bold text-slate-400 hover:text-rose-500 py-3"
+                          >
+                            Encontrou um erro na comanda? Clique aqui.
+                          </button>
+                        )}
                       </>
                     )}
                   </div>

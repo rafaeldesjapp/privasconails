@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, CheckCircle2, Clock, Plus, Trash2, Calendar as CalIcon, Lock, Unlock, AlertOctagon, Pencil, Save, X, GripVertical, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle2, Clock, Plus, Trash2, Calendar as CalIcon, Lock, Unlock, AlertOctagon, Pencil, Save, X, GripVertical, Users, Banknote } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { format, addDays, subDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getMonth, getYear } from 'date-fns';
@@ -15,7 +15,7 @@ interface Agendamento {
   service: string;
   date: string;
   time: string;
-  status: 'agendado' | 'concluido' | 'cancelado' | 'bloqueado';
+  status: 'agendado' | 'concluido' | 'cancelado' | 'bloqueado' | 'pendente_dinheiro';
 }
 
 interface PlannerProps {
@@ -246,6 +246,16 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       if (match) return { qty: Number(match[1]), name: match[2] };
       return { qty: 1, name: p };
     });
+  };
+
+  const handleConfirmCash = async (id: string) => {
+    try {
+      const { error } = await supabase.from('agendamentos').update({ status: 'concluido', payment_method: 'dinheiro_caixa' }).eq('id', id);
+      if (error) throw error;
+      fetchAgendamentos(currentDate);
+    } catch (err: any) {
+      alert('Erro ao confirmar recebimento: ' + err.message);
+    }
   };
 
   const handleBook = async (time: string) => {
@@ -807,7 +817,12 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
 
                                       {(isAdminView || isMine) && (
                                         <div className="flex items-center gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                          {isAdminView && age.status !== 'concluido' && (
+                                          {isAdminView && age.status === 'pendente_dinheiro' && (
+                                            <button onClick={() => handleConfirmCash(age.id)} className="p-1 text-amber-500 hover:bg-amber-100 flex items-center gap-1 rounded transition-colors" title="Confirmar Recebimento em Dinheiro (Físico)">
+                                              <Banknote className="w-4 h-4" />
+                                            </button>
+                                          )}
+                                          {isAdminView && age.status !== 'concluido' && age.status !== 'pendente_dinheiro' && (
                                             <button onClick={() => setCheckoutData(age)} className="p-1 text-green-600 hover:bg-green-200 rounded transition-colors" title="Finalizar Atendimento">
                                               <CheckCircle2 className="w-4 h-4" />
                                             </button>

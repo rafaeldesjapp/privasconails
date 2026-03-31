@@ -173,6 +173,37 @@ const UsuariosPage = () => {
     setShowNameModal(true);
   };
 
+  const handleToggleTab = async (profile: any) => {
+    if (!profile) return;
+    const newAllowTab = !profile.allow_tab;
+    
+    // Atualiza otimisticamente
+    setLocalProfiles(prev => prev.map(p => p.id === profile.id ? { ...p, allow_tab: newAllowTab } : p));
+    
+    try {
+      const response = await fetch('/api/admin/update-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId: profile.id,
+          requesterId: user?.id,
+          allowTab: newAllowTab
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Falha na requisição');
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar fiado:', err);
+      // Reverte se der erro
+      setLocalProfiles(prev => prev.map(p => p.id === profile.id ? { ...p, allow_tab: profile.allow_tab } : p));
+      alert('Não foi possível alterar a permissão de Fiado (Colocar na Conta).');
+    }
+  };
+
   const openUsernameModal = (profile: any) => {
     setSelectedUser(profile);
     setEditUsername(profile.username || '');
@@ -472,6 +503,7 @@ const UsuariosPage = () => {
                         <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Email</th>
                         <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Celular</th>
                         <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Nível de Acesso</th>
+                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap text-center">Permite Fiado?</th>
                         <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Data de Cadastro</th>
                         <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Ações</th>
                       </tr>
@@ -563,6 +595,24 @@ const UsuariosPage = () => {
                               {profile.role === 'desenvolvedor' || profile.role === 'admin' ? <Shield className="w-3 h-3" /> : null}
                               {profile.role === 'desenvolvedor' ? 'Desenvolvedor' : (profile.role === 'admin' ? 'Administrador' : 'Cliente')}
                             </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-center">
+                            {profile.role === 'cliente' && showAdminButtons ? (
+                              <button
+                                onClick={() => handleToggleTab(profile)}
+                                className={cn(
+                                  "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2",
+                                  profile.allow_tab ? "bg-blue-600" : "bg-slate-200"
+                                )}
+                              >
+                                <span className={cn(
+                                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                                  profile.allow_tab ? "translate-x-4" : "translate-x-0"
+                                )} />
+                              </button>
+                            ) : (
+                                <span className="text-xs text-slate-400">---</span>
+                            )}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span className="text-xs text-slate-500">

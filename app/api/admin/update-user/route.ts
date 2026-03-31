@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { userId, email, phone, fullName, username, requesterId } = await req.json();
+    const { userId, email, phone, fullName, username, requesterId, allowTab } = await req.json();
 
     if (!userId || !requesterId) {
       return NextResponse.json({ error: 'ID do usuário e requesterId são obrigatórios' }, { status: 400 });
@@ -60,6 +60,9 @@ export async function POST(req: Request) {
     if (phone !== undefined) updateData.phone = phone?.trim();
     if (fullName !== undefined) updateData.full_name = fullName?.trim();
     if (username !== undefined) updateData.username = username?.trim().toLowerCase().replace(/\s/g, '');
+    if (typeof allowTab === 'boolean') {
+      updateData.allow_tab = allowTab;
+    }
 
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
