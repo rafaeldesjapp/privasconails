@@ -34,19 +34,24 @@ export async function POST(req: Request) {
     // Vamos gerar uma chave aleatória se não for repassada pelo header
     const idempotencyKey = req.headers.get('x-idempotency-key') || crypto.randomUUID();
 
+    const requestBody: any = {
+      transaction_amount: Number(transaction_amount),
+      description: description || 'Serviços de Salão de Beleza',
+      payment_method_id: payment_method_id,
+      payer: {
+        email: payer?.email || 'cliente@privasconails.com',
+      }
+    };
+
+    if (token) requestBody.token = token;
+    if (installments && !isNaN(Number(installments))) requestBody.installments = Number(installments);
+    if (issuer_id) requestBody.issuer_id = issuer_id;
+    if (payer?.identification && payer.identification.type && payer.identification.number) {
+        requestBody.payer.identification = payer.identification;
+    }
+
     const result = await payment.create({
-      body: {
-        transaction_amount: Number(transaction_amount),
-        token: token,
-        description: description || 'Serviços de Salão de Beleza',
-        installments: Number(installments),
-        payment_method_id: payment_method_id,
-        issuer_id: issuer_id,
-        payer: {
-          email: payer?.email || 'cliente@privasconails.com',
-          identification: payer?.identification || undefined
-        }
-      },
+      body: requestBody,
       requestOptions: {
         idempotencyKey: idempotencyKey
       }
