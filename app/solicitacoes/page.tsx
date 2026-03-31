@@ -15,6 +15,7 @@ const SolicitacoesPage = () => {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [resolveComment, setResolveComment] = useState<string>('');
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -98,7 +99,8 @@ const SolicitacoesPage = () => {
           data: {
             ...request.data,
             resolved_by: user?.email,
-            resolved_at: new Date().toISOString()
+            resolved_at: new Date().toISOString(),
+            resolve_comment: resolveComment
           }
         })
         .eq('id', request.id);
@@ -125,7 +127,8 @@ const SolicitacoesPage = () => {
           data: {
             ...request.data,
             resolved_by: user?.email,
-            resolved_at: new Date().toISOString()
+            resolved_at: new Date().toISOString(),
+            resolve_comment: resolveComment
           }
         })
         .eq('id', request.id);
@@ -212,14 +215,17 @@ const SolicitacoesPage = () => {
                       <div className="flex items-start gap-4">
                         <div className={cn(
                           "p-3 rounded-xl",
-                          request.type === 'change_password' ? "bg-amber-100 text-amber-600" : "bg-blue-100 text-blue-600"
+                          request.type === 'change_password' ? "bg-amber-100 text-amber-600" : 
+                          request.type === 'question_charge' ? "bg-rose-100 text-rose-600" : "bg-blue-100 text-blue-600"
                         )}>
-                          {request.type === 'change_password' ? <Key className="w-6 h-6" /> : <User className="w-6 h-6" />}
+                          {request.type === 'change_password' ? <Key className="w-6 h-6" /> : 
+                           request.type === 'question_charge' ? <AlertCircle className="w-6 h-6" /> : <User className="w-6 h-6" />}
                         </div>
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <h3 className="font-bold text-slate-800">
-                              {request.type === 'change_password' ? 'Alteração de Senha' : 'Atualização de Perfil'}
+                              {request.type === 'change_password' ? 'Alteração de Senha' : 
+                               request.type === 'question_charge' ? 'Questionamento de Fatura' : 'Atualização de Perfil'}
                             </h3>
                             <span className={cn(
                               "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
@@ -240,6 +246,16 @@ const SolicitacoesPage = () => {
                                 <div className="flex items-center gap-2 text-sm text-slate-700">
                                   <Key className="w-3.5 h-3.5 text-slate-400" />
                                   <span>Nova senha solicitada</span>
+                                </div>
+                              ) : request.type === 'question_charge' ? (
+                                <div className="space-y-1 mt-1">
+                                  <p className="text-sm font-medium text-rose-600 flex items-start gap-2">
+                                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                                    "{request.data.message}"
+                                  </p>
+                                  {request.data.total_claimed && (
+                                    <p className="text-xs text-slate-500 font-mono mt-2">Valor da Comanda: R$ {request.data.total_claimed}</p>
+                                  )}
                                 </div>
                               ) : (
                                 <>
@@ -267,38 +283,54 @@ const SolicitacoesPage = () => {
                           </div>
                           
                           {request.status !== 'pendente' && request.data.resolved_by && (
-                            <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50/50 p-2 rounded-lg border border-slate-200 w-fit">
-                              <User className="w-3.5 h-3.5" />
-                              <span>{request.status === 'aprovado' ? 'Aprovado' : 'Rejeitado'} por: <strong className="font-bold text-slate-700">{request.data.resolved_by}</strong></span>
+                            <div className="mt-3 bg-slate-50/50 p-3 rounded-lg border border-slate-200 w-full text-sm">
+                              <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
+                                <User className="w-3.5 h-3.5" />
+                                <span>{request.status === 'aprovado' ? 'Aprovado' : 'Rejeitado'} por: <strong className="font-bold text-slate-700">{request.data.resolved_by}</strong></span>
+                              </div>
+                              {request.data.resolve_comment && (
+                                <div className="text-slate-600 font-medium italic">
+                                  "{request.data.resolve_comment}"
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
                       </div>
 
-                      {request.status === 'pendente' && (
-                        <div className="flex items-center gap-2 self-end md:self-center">
-                          <button
-                            onClick={() => handleReject(request)}
-                            disabled={processingId === request.id}
-                            className="p-3 text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
-                            title="Rejeitar"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => handleApprove(request)}
-                            disabled={processingId === request.id}
-                            className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-all shadow-sm disabled:opacity-50"
-                          >
-                            {processingId === request.id ? 'Processando...' : (
-                              <>
-                                <Check className="w-4 h-4" />
-                                Aprovar
-                              </>
-                            )}
-                          </button>
+                        <div className="flex flex-col gap-2 w-full md:w-auto md:min-w-[300px]">
+                          {request.type === 'question_charge' && (
+                            <input
+                              type="text"
+                              value={resolveComment}
+                              onChange={(e) => setResolveComment(e.target.value)}
+                              placeholder="Motivo da decisão (Opcional)"
+                              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-400 mb-2"
+                            />
+                          )}
+                          <div className="flex items-center gap-2 self-end md:self-stretch justify-end">
+                            <button
+                              onClick={() => handleReject(request)}
+                              disabled={processingId === request.id}
+                              className="p-3 text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
+                              title="Rejeitar"
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => handleApprove(request)}
+                              disabled={processingId === request.id}
+                              className="flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-all shadow-sm disabled:opacity-50 flex-1 md:flex-initial"
+                            >
+                              {processingId === request.id ? 'Processando...' : (
+                                <>
+                                  <Check className="w-4 h-4" />
+                                  Aprovar
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
-                      )}
                     </div>
                     <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
                       <span className="text-[10px] text-slate-400 font-medium">

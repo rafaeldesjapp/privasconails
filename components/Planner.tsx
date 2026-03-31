@@ -61,7 +61,15 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   // Estados do WhatsApp e Serviços
   const [studioWhatsapp, setStudioWhatsapp] = useState<string | null>(null);
   const [pendingBooking, setPendingBooking] = useState<{ time: string, service: string } | null>(null);
-  const [availableServices, setAvailableServices] = useState<string[]>([]);
+  
+  // Categorias padrão servindo como fallback caso RLS bloqueie a query da tabela configuracoes para clientes comuns
+  const DEFAULT_CATEGORIES = [
+    { category: 'Unhas Simples', items: [{name: 'Mão', price: 30}, {name: 'Pé', price: 30}, {name: 'Pé e Mão Simples', price: 50}, {name: 'Pé e Mão Decorado', price: 55}] },
+    { category: 'Alongamento', items: [{name: 'Postiça Realista', price: 60}, {name: 'Banho de Gel', price: 80}, {name: 'Acrigel', price: 129}, {name: 'Fibra de Vidro', price: 160}] },
+    { category: 'Manutenções e Extra', items: [{name: 'Manutenção em Gel', price: 50}, {name: 'Manutenção em Acrigel', price: 90}, {name: 'Manutenção em Fibra', price: 130}, {name: 'Reposição de Unha (UN)', price: 15}] }
+  ];
+  
+  const [availableServices, setAvailableServices] = useState<{category: string, items: {name: string, price: number}[]}[]>(DEFAULT_CATEGORIES);
 
   // Estados do Checkout
   const [checkoutData, setCheckoutData] = useState<Agendamento | null>(null);
@@ -74,28 +82,28 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   // Busca número do WhatsApp e Tabela de Preços
   useEffect(() => {
     const fetchConfig = async () => {
-      // Usando .or para buscar as duas chaves de uma vez, seja chave ou id
-      const { data } = await supabase.from('configuracoes').select('*');
-      
-      if (data) {
-        const whatsappConfig = data.find((c: any) => c.chave === 'whatsapp_studio' || c.id === 'whatsapp_studio');
-        if (whatsappConfig?.valor) setStudioWhatsapp(whatsappConfig.valor.replace(/"/g, ''));
+      // Busca Whatsapp
+      const { data: wData } = await supabase.from('configuracoes').select('valor').eq('id', 'whatsapp_studio').maybeSingle();
+      if (wData?.valor) setStudioWhatsapp(wData.valor.replace(/"/g, ''));
 
-        const precosConfig = data.find((c: any) => c.id === 'tabela_precos' || c.chave === 'tabela_precos');
-        if (precosConfig?.valor && Array.isArray(precosConfig.valor)) {
-          const flat: string[] = [];
-          precosConfig.valor.forEach((cat: any) => {
-            if (cat.itens && Array.isArray(cat.itens)) {
-              cat.itens.forEach((item: any) => {
-                if (item.nome) flat.push(item.nome);
-              });
-            }
-          });
-          if (flat.length > 0) setAvailableServices(flat);
-          else setAvailableServices(['Unhas Simples', 'Banho de Gel', 'Outros']);
-        } else {
-          setAvailableServices(['Unhas Simples', 'Banho de Gel', 'Outros']);
-        }
+      // Busca Tabelas de Preços
+      const { data: pData } = await supabase.from('configuracoes').select('valor').eq('id', 'tabela_precos').maybeSingle();
+      
+      if (pData?.valor && Array.isArray(pData.valor)) {
+        const grouped: {category: string, items: {name: string, price: number}[]}[] = [];
+        pData.valor.forEach((cat: any) => {
+          if (cat.itens && Array.isArray(cat.itens)) {
+            const catObj = { category: cat.nome || 'Serviços', items: [] as {name: string, price: number}[] };
+            cat.itens.forEach((item: any) => {
+              if (item.nome) catObj.items.push({ name: item.nome, price: Number(item.preco) || 0 });
+            });
+            if (catObj.items.length > 0) grouped.push(catObj);
+          }
+        });
+        if (grouped.length > 0) setAvailableServices(grouped);
+        else setAvailableServices(DEFAULT_CATEGORIES);
+      } else {
+        setAvailableServices(DEFAULT_CATEGORIES);
       }
     };
     fetchConfig();
@@ -103,7 +111,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
 
   useEffect(() => {
     if (isAdminView) {
-      supabase.from('profiles').select('id, full_name').order('full_name').then(({data}) => {
+      supabase.from('profiles').select('id, full_name').order('full_name').then(({data}: any) => {
          if (data) setClientsList(data);
       });
     }
@@ -275,7 +283,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       if (error) throw error;
       
       setSelectedSlot(null);
-      setNewServices([{qty: 1, name: availableServices[0] || ''}]);
+      setNewServices([{qty: 1, name: availableServices[0]?.items[0]?.name || ''}]);
       setPendingBooking(null);
       fetchAgendamentos(currentDate);
       fetchBlockedDays(currentDate);
@@ -730,8 +738,12 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                             autoFocus={idx === 0}
                                           >
                                             <option value="" disabled>Selecione um Serviço...</option>
-                                            {availableServices.map((svc: string, sIdx: number) => (
-                                               <option key={sIdx} value={svc}>{svc}</option>
+                                            {availableServices.map((grp, gIdx) => (
+                                              <optgroup key={gIdx} label={grp.category?.toUpperCase() || 'SERVIÇOS'}>
+                                                {grp.items.map((svc: {name: string, price: number}, sIdx: number) => (
+                                                   <option key={`${gIdx}-${sIdx}`} value={svc.name}>{svc.name} - R$ {svc.price},00</option>
+                                                ))}
+                                              </optgroup>
                                             ))}
                                           </select>
                                           {editServices.length > 1 && (
@@ -754,7 +766,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                       
                                       <div className="flex justify-between items-center mt-1">
                                         <button 
-                                          onClick={() => setEditServices([...editServices, {qty: 1, name: availableServices[0] || ''}])}
+                                          onClick={() => setEditServices([...editServices, {qty: 1, name: availableServices[0]?.items[0]?.name || ''}])}
                                           className="text-xs font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 bg-rose-50 px-2 py-1 rounded"
                                         >
                                           <Plus className="w-3 h-3" /> Adicionar
@@ -866,8 +878,12 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                             autoFocus={idx === 0}
                                           >
                                             <option value="" disabled>Selecione um Serviço...</option>
-                                            {availableServices.map((svc: string, sIdx: number) => (
-                                               <option key={sIdx} value={svc}>{svc}</option>
+                                            {availableServices.map((grp, gIdx) => (
+                                              <optgroup key={gIdx} label={grp.category?.toUpperCase() || 'SERVIÇOS'}>
+                                                {grp.items.map((svc: {name: string, price: number}, sIdx: number) => (
+                                                   <option key={`${gIdx}-${sIdx}`} value={svc.name}>{svc.name} - R$ {svc.price},00</option>
+                                                ))}
+                                              </optgroup>
                                             ))}
                                           </select>
                                           {newServices.length > 1 && (
@@ -890,7 +906,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
 
                                       <div className="flex justify-between items-center mt-1">
                                         <button 
-                                          onClick={() => setNewServices([...newServices, {qty: 1, name: availableServices[0] || ''}])}
+                                          onClick={() => setNewServices([...newServices, {qty: 1, name: availableServices[0]?.items[0]?.name || ''}])}
                                           className="text-xs font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 bg-rose-50 px-2 py-1 rounded"
                                         >
                                           <Plus className="w-3 h-3" /> Adicionar
@@ -911,7 +927,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                     </div>
                                   ) : (
                                     <button 
-                                      onClick={() => { setSelectedSlot(time); setNewServices([{qty: 1, name: availableServices[0] || ''}]); }}
+                                      onClick={() => { setSelectedSlot(time); setNewServices([{qty: 1, name: availableServices[0]?.items[0]?.name || ''}]); }}
                                       className="flex items-center gap-1 md:gap-2 text-rose-400 md:text-slate-300 hover:text-rose-500 text-sm font-medium ml-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all z-20 relative"
                                     >
                                       <Plus className="w-4 h-4" />

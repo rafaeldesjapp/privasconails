@@ -18,7 +18,8 @@ import {
   Paintbrush,
   Bell,
   CalendarPlus,
-  CreditCard
+  CreditCard,
+  Receipt
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -78,18 +79,20 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     { name: 'Meus Trabalhos', icon: Sparkles, href: '/portfolio' },
     { name: 'Tabela de Preços', icon: Tag, href: '/tabela-precos' },
     { name: 'Meu Painel', icon: LayoutDashboard, href: '/painel' },
+    { name: (role === 'admin' || role === 'desenvolvedor') ? 'Receber de...' : 'Pagar Minha Conta', icon: Receipt, href: '/conta' },
     { name: 'Contatos', icon: Users, href: '/contatos' },
     { name: 'Agenda', icon: CalendarDays, href: '/agenda' },
     { name: 'Agendamentos', icon: CalendarPlus, href: '/agendamentos' },
     { name: 'Pagamentos', icon: CreditCard, href: '/pagamentos' },
     { name: 'Papo de Salão', icon: MessageCircle, href: '/papo-de-salao' },
+    { name: 'Solicitações', icon: Bell, href: '/solicitacoes' },
     { name: 'Histórico', icon: History, href: '/historico' },
   ];
 
   const filteredNavItems = (role === 'admin' || role === 'desenvolvedor') 
     ? navItems 
     : navItems.filter(item => 
-        ['Meus Trabalhos', 'Tabela de Preços', 'Meu Painel', 'Agendamentos', 'Pagamentos', 'Papo de Salão', 'Histórico'].includes(item.name)
+        ['Meus Trabalhos', 'Tabela de Preços', 'Pagar Minha Conta', 'Agendamentos', 'Pagamentos', 'Papo de Salão', 'Histórico'].includes(item.name as string)
       );
 
   const handleLogout = async () => {
