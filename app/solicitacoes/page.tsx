@@ -89,6 +89,19 @@ const SolicitacoesPage = () => {
           const result = await response.json();
           throw new Error(result.error || 'Erro ao processar alteração de senha');
         }
+      } else if (request.type === 'question_charge') {
+        const appointmentIds = request.data.appointment_ids || [];
+        if (appointmentIds.length > 0) {
+          const { error: apError } = await supabase
+            .from('agendamentos')
+            .update({ 
+               status: 'concluido', 
+               payment_method: 'resolucao_disputa'
+            })
+            .in('id', appointmentIds);
+            
+          if (apError) throw new Error(apError.message || 'Erro ao modificar agendamentos contestados.');
+        }
       }
 
       // Marcar como aprovado
