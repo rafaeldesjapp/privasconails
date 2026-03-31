@@ -142,7 +142,6 @@ export default function ContaPage() {
     setBillingItems(data || []);
     setViewState('bill');
     setShowPaymentOptions(false);
-    setPreferenceId(null);
   };
 
   // Calcula os precos recursivamente apenas quando o pricesLookup atualiza ou os billingItems
@@ -436,7 +435,8 @@ export default function ContaPage() {
                                   </button>
                                </div>
                             ) : (
-                               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden my-4 relative z-10 w-full">
+                               <>
+                                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden my-4 relative z-10 w-full">
                                   <Payment
                                     initialization={{
                                       amount: Number(total.toFixed(2))
@@ -581,6 +581,8 @@ export default function ContaPage() {
                             <button onClick={() => setShowPaymentOptions(false)} className="w-full mt-2 text-xs text-slate-400 font-medium py-2 hover:text-slate-600">
                                Voltar
                             </button>
+                               </>
+                            )}
                           </div>
                         )}
                         
