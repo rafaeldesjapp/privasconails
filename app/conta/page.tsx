@@ -391,7 +391,7 @@ export default function ContaPage() {
                             <h3 className="text-center font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 text-sm">Como você deseja pagar?</h3>
                             
                             {/* CHECKOUT TRANSPARENTE: MERCADO PAGO PAYMENT BRICK */}
-                            {pixData ? (
+                            {pixData && (
                                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col items-center gap-4 text-center my-4 relative z-10 w-full animate-in fade-in zoom-in duration-300">
                                   <h4 className="font-bold text-lg text-slate-800">Pagamento via PIX gerado!</h4>
                                   <p className="text-sm text-slate-500">Escaneie o QR Code abaixo com o aplicativo do seu banco:</p>
@@ -419,39 +419,91 @@ export default function ContaPage() {
                                     </button>
                                   </div>
                                   
-                                  <button 
-                                     onClick={() => { 
-                                        setPixData(null); 
-                                        if (role === 'admin' || role === 'desenvolvedor') {
-                                           setSelectedClient(null);
-                                           setViewState('select_client');
-                                        } else {
-                                           fetchBill(user!.id); 
-                                        }
-                                     }} 
-                                     className="mt-4 text-[#009EE3] font-bold text-sm hover:underline"
-                                  >
-                                    Já paguei (Voltar)
-                                  </button>
+                                  <div className="flex flex-col sm:flex-row w-full gap-2 mt-4">
+                                     <button 
+                                        onClick={() => { 
+                                           setPixData(null); 
+                                           if (role === 'admin' || role === 'desenvolvedor') {
+                                              setSelectedClient(null);
+                                              setViewState('select_client');
+                                           } else {
+                                              fetchBill(user!.id); 
+                                           }
+                                        }} 
+                                        className="flex-1 p-3 bg-green-50 text-green-700 font-bold rounded-xl hover:bg-green-100 transition-colors"
+                                     >
+                                       ✓ Já paguei
+                                     </button>
+
+                                     <button 
+                                        onClick={() => setPixData(null)} 
+                                        className="flex-1 p-3 border border-slate-200 text-slate-500 font-bold rounded-xl hover:bg-slate-50 transition-colors"
+                                     >
+                                       Outra forma
+                                     </button>
+                                  </div>
                                </div>
-                            ) : (
-                               <>
-                                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden my-4 relative z-10 w-full">
-                                  <Payment
-                                    initialization={{
-                                      amount: Number(total.toFixed(2))
+                            )}
+
+                            {!pixData && (
+                                  <button
+                                    type="button"
+                                    onClick={async (e) => {
+                                      e.preventDefault();
+                                      try {
+                                        setCreatingPreference(true);
+                                        const payload = {
+                                          transaction_amount: Number(total.toFixed(2)),
+                                          payment_method_id: 'pix',
+                                          payer: { email: user?.email || 'cliente@privasconails.com' },
+                                          appointmentIds: billingItems.map((b: any) => b.id)
+                                        };
+                                        
+                                        const req = await fetch("/api/pagamentos/process-payment", {
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify(payload),
+                                        });
+                                        const response = await req.json();
+                                        
+                                        if (response.error) {
+                                           alert("Falha ao gerar PIX: " + response.error);
+                                        } else if (response.status === 'pending' && response.qr_code) {
+                                           setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64 });
+                                        } else {
+                                           alert("Status Inesperado: " + response.status);
+                                        }
+                                      } catch (err: any) {
+                                        alert("Falha de rede ao tentar gerar PIX.");
+                                      } finally {
+                                        setCreatingPreference(false);
+                                      }
                                     }}
-                                    customization={{
-                                      paymentMethods: {
-                                        creditCard: "all",
-                                        debitCard: "all",
-                                        ticket: "all",
-                                        bankTransfer: "all",
-                                        mercadoPago: "all",
-                                      },
-                                    }}
-                                    onSubmit={async (param: any) => {
-                                  return new Promise<void>((resolve, reject) => {
+                                    className="w-full p-4 border border-[#32BCAD]/40 bg-[#32BCAD]/10 text-[#32BCAD] font-black rounded-xl flex items-center justify-center gap-2 hover:bg-[#32BCAD]/20 transition-colors uppercase tracking-tight text-sm my-4 shadow-sm"
+                                  >
+                                    <Smartphone className="w-5 h-5" />
+                                    Gerar PIX Rápido
+                                  </button>
+                            )}
+
+                                  <div className="text-center text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest opacity-60">— Pague com Cartão —</div>
+
+                                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-4 relative z-10 w-full">
+                                   <Payment
+                                     initialization={{
+                                       amount: Number(total.toFixed(2)),
+                                       payer: {
+                                         email: user?.email || 'cliente@privasconails.com'
+                                       }
+                                     }}
+                                     customization={{
+                                       paymentMethods: {
+                                         creditCard: "all",
+                                         debitCard: "all"
+                                       },
+                                     }}
+                                     onSubmit={async (param: any) => {
+                                   return new Promise<void>((resolve, reject) => {
                                     const payload = {
                                       ...param.formData,
                                       appointmentIds: billingItems.map((b: any) => b.id)
@@ -581,8 +633,6 @@ export default function ContaPage() {
                             <button onClick={() => setShowPaymentOptions(false)} className="w-full mt-2 text-xs text-slate-400 font-medium py-2 hover:text-slate-600">
                                Voltar
                             </button>
-                               </>
-                            )}
                           </div>
                         )}
                         
