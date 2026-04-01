@@ -95,10 +95,24 @@ export default function TabelaPrecos() {
         .eq('id', 'tabela_precos')
         .maybeSingle();
 
-      if (!error && data?.valor && Array.isArray(data.valor)) {
-        setCategories(data.valor);
+      if (error) {
+         console.error('Erro ao buscar tabela:', error);
       }
-    } catch {
+
+      let parsedValor = data?.valor;
+      if (typeof parsedValor === 'string') {
+        try {
+          parsedValor = JSON.parse(parsedValor);
+        } catch (e) {
+          console.error("Erro ao fazer parse da tabela de preços", e);
+        }
+      }
+
+      if (!error && parsedValor && Array.isArray(parsedValor)) {
+        setCategories(parsedValor);
+      }
+    } catch (err) {
+      console.error('Catch erro ao buscar tabela:', err);
       // Tabela pode não existir ainda — usa padrão
     } finally {
       setFetching(false);

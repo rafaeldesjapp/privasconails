@@ -25,7 +25,7 @@ import {
   History
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
+import { initMercadoPago, Payment, Wallet } from '@mercadopago/sdk-react';
 
 // Inicializa o Mercado Pago SDK com uma chave pública embutida ou de env
 initMercadoPago(process.env.NEXT_PUBLIC_MP_PUBLIC_KEY || 'TEST-33923f17-b080-455b-bfb3-cd98decf5960', { locale: 'pt-BR' });
@@ -67,6 +67,25 @@ export default function ContaPage() {
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [pixData, setPixData] = useState<{qr_code: string, qr_code_base64: string} | null>(null);
   const [creatingPreference, setCreatingPreference] = useState(false);
+  const [walletPreferenceId, setWalletPreferenceId] = useState<string | null>(null);
+
+  const loadWalletPreference = async () => {
+    try {
+      setCreatingPreference(true);
+      const req = await fetch('/api/pagamentos/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ total, items: billingItems, customerEmail: user?.email })
+      });
+      const data = await req.json();
+      if (data.id) setWalletPreferenceId(data.id);
+      else alert("Falha ao gerar link Mercado Pago: " + (data.error || "Erro"));
+    } catch (e: any) {
+      alert("Erro ao conectar com Mercado Pago.");
+    } finally {
+      setCreatingPreference(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -103,8 +122,15 @@ export default function ContaPage() {
       });
     };
 
-    if (data?.valor && Array.isArray(data.valor)) {
-      processCategories(data.valor);
+    let dataValor = data?.valor;
+    if (typeof dataValor === 'string') {
+       try {
+         dataValor = JSON.parse(dataValor);
+       } catch(e) {}
+    }
+
+    if (dataValor && Array.isArray(dataValor)) {
+      processCategories(dataValor);
     } else {
       processCategories(DEFAULT_CATEGORIES);
     }
@@ -552,6 +578,26 @@ export default function ContaPage() {
                                 }}
                               />
                             </div>
+
+                            <div className="text-center text-xs font-bold text-slate-400 mb-2 mt-6 uppercase tracking-widest opacity-60">— Carteiras Digitais (Google Pay) —</div>
+                            <div className="mb-6 w-full">
+                              {!walletPreferenceId ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.preventDefault(); loadWalletPreference(); }}
+                                  className="w-full p-4 border border-[#009EE3]/40 bg-[#009EE3]/10 text-[#009EE3] font-black rounded-xl flex items-center justify-center gap-2 hover:bg-[#009EE3]/20 transition-colors uppercase tracking-tight text-sm shadow-sm"
+                                >
+                                  <Smartphone className="w-5 h-5" />
+                                  Pagar com Google Pay / MP
+                                </button>
+                              ) : (
+                                <div className="bg-white rounded-xl shadow-sm border border-[#009EE3]/30 overflow-hidden relative z-10 w-full animate-in fade-in zoom-in duration-300">
+                                   <Wallet initialization={{ preferenceId: walletPreferenceId }} />
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="text-center text-xs font-bold text-slate-400 mb-2 mt-6 uppercase tracking-widest opacity-60">— Pagamento Físico (Loja) —</div>
 
                             <button 
                               type="button"

@@ -1,39 +1,63 @@
 import { NextResponse } from 'next/server';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 
-// Instância do MP
+// Inicializa SDK do Mercado Pago
 const client = new MercadoPagoConfig({
   accessToken: process.env.MP_ACCESS_TOKEN || '',
 });
 
 export async function POST(req: Request) {
   try {
-    const { items, payerEmail, appointmentIds } = await req.json();
+    const body = await req.json();
+    const { total, items, customerEmail } = body;
 
-    if (!items || items.length === 0) {
-      return NextResponse.json({ error: 'Nenhum item na comanda.' }, { status: 400 });
+    if (!total || !items || items.length === 0) {
+      return NextResponse.json({ error: 'Faltam parâmetros essenciais para gerar a preferência' }, { status: 400 });
     }
 
     const preference = new Preference(client);
 
-    // Mapeia os items do carrinho para o formato do MP super estrito
-    const mpItems = items.map((item: any) => ({
-      id: "1",
-      title: "Serviço",
-      quantity: 1, 
-      unit_price: Number(item.price),
-      currency_id: 'BRL'
+    // Build items array for Mercado Pago preference
+    const preferenceItems = items.map((item: any) => ({
+      id: item.id,
+      title: item.service || 'Serviço de Salão',
+      quantity: 1,
+      unit_price: Number(item.price), // We receive price per item from frontend, or just a total. Let's rely on total for simplicity.
     }));
 
-    const body = {
-      items: mpItems,
+    // Or just a single consolidated item to avoid floating point math mismatch with frontend.
+    const consolidatedItem = {
+      id: 'comanda',
+      title: 'Comanda de Serviços - Privasco Nails',
+      quantity: 1,
+      unit_price: Number(total),
     };
 
-    const response = await preference.create({ body });
+    const host = process.env.NEXT_PUBLIC_BASE_URL || 'https://privasconails.vercel.app';
 
-    return NextResponse.json({ id: response.id });
+    const result = await preference.create({
+      body: {
+        items: [consolidatedItem],
+        payer: {
+          email: customerEmail || 'cliente@privasconails.com'
+        },
+        back_urls: {
+          success: `${host}/conta?status=approved`,
+          failure: `${host}/conta?status=failure`,
+          pending: `${host}/conta?status=pending`
+        },
+        auto_return: 'approved',
+        statement_descriptor: 'PRIVASCO NAILS',
+      }
+    });
+
+    return NextResponse.json({
+      id: result.id,
+      init_point: result.init_point,
+    });
+
   } catch (error: any) {
-    console.error('Erro ao criar preferência:', error);
-    return NextResponse.json({ error: error.message || error.toString() || 'Internal server error' }, { status: 500 });
+    console.error('Erro ao gerar Preferência do MP:', error);
+    return NextResponse.json({ error: error.message || 'Erro Interno ao gerar Preferência' }, { status: 500 });
   }
 }
