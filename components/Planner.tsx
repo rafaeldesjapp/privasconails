@@ -82,27 +82,41 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   // Busca número do WhatsApp e Tabela de Preços
   useEffect(() => {
     const fetchConfig = async () => {
-      // Busca Whatsapp
-      const { data: wData } = await supabase.from('configuracoes').select('valor').eq('id', 'whatsapp_studio').maybeSingle();
-      if (wData?.valor) setStudioWhatsapp(wData.valor.replace(/"/g, ''));
-
-      // Busca Tabelas de Preços
-      const { data: pData } = await supabase.from('configuracoes').select('valor').eq('id', 'tabela_precos').maybeSingle();
-      
-      if (pData?.valor && Array.isArray(pData.valor)) {
-        const grouped: {category: string, items: {name: string, price: number}[]}[] = [];
-        pData.valor.forEach((cat: any) => {
-          if (cat.itens && Array.isArray(cat.itens)) {
-            const catObj = { category: cat.nome || 'Serviços', items: [] as {name: string, price: number}[] };
-            cat.itens.forEach((item: any) => {
-              if (item.nome) catObj.items.push({ name: item.nome, price: Number(item.preco) || 0 });
-            });
-            if (catObj.items.length > 0) grouped.push(catObj);
-          }
-        });
-        if (grouped.length > 0) setAvailableServices(grouped);
-        else setAvailableServices(DEFAULT_CATEGORIES);
-      } else {
+      try {
+        const req = await fetch('/api/configuracoes/get', { cache: 'no-store' });
+        if (!req.ok) throw new Error('Falha na API: ' + req.statusText);
+        
+        const res = await req.json();
+        if (res.success && res.data) {
+           const wData = res.data.whatsapp_studio;
+           if (wData) setStudioWhatsapp(String(wData).replace(/"/g, ''));
+           
+           let parsedTabela = res.data.tabela_precos;
+           if (typeof parsedTabela === 'string') {
+              try { parsedTabela = JSON.parse(parsedTabela); } catch(e) {}
+           }
+           
+           if (parsedTabela && Array.isArray(parsedTabela)) {
+              const grouped: {category: string, items: {name: string, price: number}[]}[] = [];
+              parsedTabela.forEach((cat: any) => {
+                if (cat.itens && Array.isArray(cat.itens)) {
+                  const catObj = { category: cat.nome || 'Serviços', items: [] as {name: string, price: number}[] };
+                  cat.itens.forEach((item: any) => {
+                    if (item.nome) catObj.items.push({ name: item.nome, price: Number(item.preco) || 0 });
+                  });
+                  if (catObj.items.length > 0) grouped.push(catObj);
+                }
+              });
+              if (grouped.length > 0) setAvailableServices(grouped);
+              else setAvailableServices(DEFAULT_CATEGORIES);
+           } else {
+              setAvailableServices(DEFAULT_CATEGORIES);
+           }
+        } else {
+           setAvailableServices(DEFAULT_CATEGORIES);
+        }
+      } catch (err) {
+        console.error("Erro ao buscar configurações iniciais:", err);
         setAvailableServices(DEFAULT_CATEGORIES);
       }
     };

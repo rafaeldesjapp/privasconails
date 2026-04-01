@@ -89,27 +89,22 @@ export default function TabelaPrecos() {
   // ── Carregar do Supabase ──────────────────────────────────────────
   const loadData = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('configuracoes')
-        .select('valor')
-        .eq('id', 'tabela_precos')
-        .maybeSingle();
-
-      if (error) {
-         console.error('Erro ao buscar tabela:', error);
-      }
-
-      let parsedValor = data?.valor;
-      if (typeof parsedValor === 'string') {
-        try {
-          parsedValor = JSON.parse(parsedValor);
-        } catch (e) {
-          console.error("Erro ao fazer parse da tabela de preços", e);
-        }
-      }
-
-      if (!error && parsedValor && Array.isArray(parsedValor)) {
-        setCategories(parsedValor);
+      const response = await fetch('/api/configuracoes/get');
+      if (!response.ok) throw new Error('Falha ao buscar tabela da API');
+      
+      const res = await response.json();
+      if (res.success && res.data && res.data.tabela_precos) {
+          let parsedValor = res.data.tabela_precos;
+          if (typeof parsedValor === 'string') {
+            try {
+              parsedValor = JSON.parse(parsedValor);
+            } catch (e) {
+              console.error("Erro ao fazer parse da tabela de preços", e);
+            }
+          }
+          if (parsedValor && Array.isArray(parsedValor)) {
+            setCategories(parsedValor);
+          }
       }
     } catch (err) {
       console.error('Catch erro ao buscar tabela:', err);

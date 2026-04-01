@@ -189,18 +189,19 @@ export default function ContaPage() {
     setTotal(gmSum);
   }, [billingItems, pricesLookup]);
 
-  const handleManualPayment = async () => {
-    if (!window.confirm('Confirmar baixa manual desta comanda no caixa?')) return;
+  const handleManualPayment = async (overrideMethod?: string | React.MouseEvent) => {
+    const methodString = typeof overrideMethod === 'string' ? overrideMethod : 'dinheiro_caixa';
+    if (!window.confirm('Confirmar baixa imediata desta comanda?')) return;
     try {
       const updates = billingItems.map(b => ({
          id: b.id,
          status: 'concluido',
-         payment_method: 'dinheiro_caixa'
+         payment_method: methodString
       }));
       // Ideally an RPC or bulk upsert. Supabase `upsert` can work if we provide id cleanly.
       const { error } = await supabase.from('agendamentos').upsert(updates);
       if (error) throw error;
-      alert('Comanda baixada com sucesso.');
+      alert('Baixa concluída com sucesso.');
       if (role === 'admin' || role === 'desenvolvedor') {
         setSelectedClient(null);
         setViewState('select_client');
@@ -209,6 +210,35 @@ export default function ContaPage() {
       }
     } catch(err: any) {
       alert(err.message);
+    }
+  };
+
+  const handlePendingRequest = async (statusTag: string, successMessage: string) => {
+    try {
+      setCreatingPreference(true);
+      const ids = billingItems.map((b: any) => b.id);
+      const req = await fetch('/api/admin/update-agendamento-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointmentIds: ids, status: statusTag })
+      });
+      const resData = await req.json();
+      
+      if (!req.ok) {
+         alert("Falha: " + resData.error);
+      } else {
+         alert(successMessage);
+         if (role === 'admin' || role === 'desenvolvedor') {
+            setSelectedClient(null);
+            setViewState('select_client');
+         } else {
+            fetchBill(user!.id);
+         }
+      }
+    } catch (err: any) {
+      alert("Erro: " + err.message);
+    } finally {
+      setCreatingPreference(false);
     }
   };
 
@@ -394,303 +424,260 @@ export default function ContaPage() {
                 {/* Acões Finais */}
                 {billingItems.length > 0 && (
                   <div className="mt-8 space-y-3">
-                    {(role === 'admin' || role === 'desenvolvedor') ? (
-                       <button 
-                         onClick={handleManualPayment}
-                         className="w-full flex items-center justify-center gap-2 bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition-colors"
-                       >
-                         <Banknote className="w-6 h-6" />
-                         Dar Baixa (Recebido Dinheiro/Físico)
-                       </button>
+                    {!showPaymentOptions ? (
+                      <button 
+                        onClick={() => setShowPaymentOptions(true)}
+                        className="w-full flex items-center justify-center gap-2 bg-[#009EE3] text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-600 transition-colors"
+                      >
+                        <CreditCard className="w-6 h-6" />
+                        Tudo Certo, Pagar Agora!
+                      </button>
                     ) : (
-                      <>
-                        {!showPaymentOptions ? (
-                          <button 
-                            onClick={() => setShowPaymentOptions(true)}
-                            className="w-full flex items-center justify-center gap-2 bg-[#009EE3] text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-600 transition-colors"
-                          >
-                            <CreditCard className="w-6 h-6" />
-                            Tudo Certo, Pagar Agora!
-                          </button>
-                        ) : (
-                          <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm animate-fade-in space-y-3">
-                            <h3 className="text-center font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 text-sm">Como você deseja pagar?</h3>
-                            
-                            {/* CHECKOUT TRANSPARENTE: MERCADO PAGO PAYMENT BRICK */}
-                            {pixData && (
-                               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col items-center gap-4 text-center my-4 relative z-10 w-full animate-in fade-in zoom-in duration-300">
-                                  <h4 className="font-bold text-lg text-slate-800">Pagamento via PIX gerado!</h4>
-                                  <p className="text-sm text-slate-500">Escaneie o QR Code abaixo com o aplicativo do seu banco:</p>
-                                  
-                                  <div className="p-2 bg-white rounded-xl border-2 border-[#009EE3]/20 shadow-sm">
-                                     <img src={`data:image/jpeg;base64,${pixData.qr_code_base64}`} alt="QR Code PIX" className="w-48 h-48 rounded-lg" />
-                                  </div>
+                      <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm animate-fade-in space-y-3">
+                        <h3 className="text-center font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 text-sm">Como você deseja pagar?</h3>
+                        
+                        {/* CHECKOUT TRANSPARENTE: MERCADO PAGO PAYMENT BRICK */}
+                        {pixData && (
+                           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col items-center gap-4 text-center my-4 relative z-10 w-full animate-in fade-in zoom-in duration-300">
+                              <h4 className="font-bold text-lg text-slate-800">Pagamento via PIX gerado!</h4>
+                              <p className="text-sm text-slate-500">Escaneie o QR Code abaixo com o aplicativo do seu banco:</p>
+                              
+                              <div className="p-2 bg-white rounded-xl border-2 border-[#009EE3]/20 shadow-sm">
+                                 <img src={`data:image/jpeg;base64,${pixData.qr_code_base64}`} alt="QR Code PIX" className="w-48 h-48 rounded-lg" />
+                              </div>
 
-                                  <p className="text-sm text-slate-500 font-bold mt-2">Ou copie o código abaixo:</p>
-                                  <div className="w-full relative">
-                                    <input 
-                                      type="text" 
-                                      readOnly 
-                                      value={pixData.qr_code} 
-                                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 pr-24 focus:outline-none" 
-                                    />
-                                    <button 
-                                      onClick={() => { 
-                                          navigator.clipboard.writeText(pixData.qr_code); 
-                                          alert('Código Pix Copiado com Sucesso!'); 
-                                      }}
-                                      className="absolute right-2 top-2 bottom-2 bg-[#009EE3] text-white px-4 py-1 rounded-lg text-xs font-bold hover:bg-[#0080B7] transition-colors"
-                                    >
-                                      Copiar
-                                    </button>
-                                  </div>
-                                  
-                                  <div className="flex flex-col sm:flex-row w-full gap-2 mt-4">
-                                     <button 
-                                        onClick={() => { 
-                                           setPixData(null); 
-                                           if (role === 'admin' || role === 'desenvolvedor') {
-                                              setSelectedClient(null);
-                                              setViewState('select_client');
-                                           } else {
-                                              fetchBill(user!.id); 
-                                           }
-                                        }} 
-                                        className="flex-1 p-3 bg-green-50 text-green-700 font-bold rounded-xl hover:bg-green-100 transition-colors"
-                                     >
-                                       ✓ Já paguei
-                                     </button>
-
-                                     <button 
-                                        onClick={() => setPixData(null)} 
-                                        className="flex-1 p-3 border border-slate-200 text-slate-500 font-bold rounded-xl hover:bg-slate-50 transition-colors"
-                                     >
-                                       Outra forma
-                                     </button>
-                                  </div>
-                               </div>
-                            )}
-
-                            {!pixData && (
-                                  <button
-                                    type="button"
-                                    onClick={async (e) => {
-                                      e.preventDefault();
-                                      try {
-                                        setCreatingPreference(true);
-                                        const payload = {
-                                          transaction_amount: Number(total.toFixed(2)),
-                                          payment_method_id: 'pix',
-                                          payer: { email: user?.email || 'cliente@privasconails.com' },
-                                          appointmentIds: billingItems.map((b: any) => b.id)
-                                        };
-                                        
-                                        const req = await fetch("/api/pagamentos/process-payment", {
-                                            method: "POST",
-                                            headers: { "Content-Type": "application/json" },
-                                            body: JSON.stringify(payload),
-                                        });
-                                        const response = await req.json();
-                                        
-                                        if (response.error) {
-                                           alert("Falha ao gerar PIX: " + response.error);
-                                        } else if (response.status === 'pending' && response.qr_code) {
-                                           setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64 });
-                                        } else {
-                                           alert("Status Inesperado: " + response.status);
-                                        }
-                                      } catch (err: any) {
-                                        alert("Falha de rede ao tentar gerar PIX.");
-                                      } finally {
-                                        setCreatingPreference(false);
-                                      }
-                                    }}
-                                    className="w-full p-4 border border-[#32BCAD]/40 bg-[#32BCAD]/10 text-[#32BCAD] font-black rounded-xl flex items-center justify-center gap-2 hover:bg-[#32BCAD]/20 transition-colors uppercase tracking-tight text-sm my-4 shadow-sm"
-                                  >
-                                    <Smartphone className="w-5 h-5" />
-                                    Gerar PIX Rápido
-                                  </button>
-                            )}
-
-                                  <div className="text-center text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest opacity-60">— Pague com Cartão —</div>
-
-                                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-4 relative z-10 w-full">
-                                   <Payment
-                                     initialization={{
-                                       amount: Number(total.toFixed(2)),
-                                       payer: {
-                                         email: user?.email || 'cliente@privasconails.com'
+                              <p className="text-sm text-slate-500 font-bold mt-2">Ou copie o código abaixo:</p>
+                              <div className="w-full relative">
+                                <input 
+                                  type="text" 
+                                  readOnly 
+                                  value={pixData.qr_code} 
+                                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 pr-24 focus:outline-none" 
+                                />
+                                <button 
+                                  onClick={() => { 
+                                      navigator.clipboard.writeText(pixData.qr_code); 
+                                      alert('Código Pix Copiado com Sucesso!'); 
+                                  }}
+                                  className="absolute right-2 top-2 bottom-2 bg-[#009EE3] text-white px-4 py-1 rounded-lg text-xs font-bold hover:bg-[#0080B7] transition-colors"
+                                >
+                                  Copiar
+                                </button>
+                              </div>
+                              
+                              <div className="flex flex-col sm:flex-row w-full gap-2 mt-4">
+                                 <button 
+                                    onClick={() => { 
+                                       setPixData(null); 
+                                       if (role === 'admin' || role === 'desenvolvedor') {
+                                          setSelectedClient(null);
+                                          setViewState('select_client');
+                                       } else {
+                                          fetchBill(user!.id); 
                                        }
-                                     }}
-                                     customization={{
-                                       paymentMethods: {
-                                         creditCard: "all",
-                                         debitCard: "all"
-                                       },
-                                     }}
-                                     onSubmit={async (param: any) => {
-                                   return new Promise<void>((resolve, reject) => {
+                                    }} 
+                                    className="flex-1 p-3 bg-green-50 text-green-700 font-bold rounded-xl hover:bg-green-100 transition-colors"
+                                 >
+                                   ✓ Já paguei
+                                 </button>
+
+                                 <button 
+                                    onClick={() => setPixData(null)} 
+                                    className="flex-1 p-3 border border-slate-200 text-slate-500 font-bold rounded-xl hover:bg-slate-50 transition-colors"
+                                 >
+                                   Outra forma
+                                 </button>
+                              </div>
+                           </div>
+                        )}
+
+                        {!pixData && (
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.preventDefault();
+                                  try {
+                                    setCreatingPreference(true);
                                     const payload = {
-                                      ...param.formData,
+                                      transaction_amount: Number(total.toFixed(2)),
+                                      payment_method_id: 'pix',
+                                      payer: { email: user?.email || 'cliente@privasconails.com' },
                                       appointmentIds: billingItems.map((b: any) => b.id)
                                     };
                                     
-                                    fetch("/api/pagamentos/process-payment", {
-                                      method: "POST",
-                                      headers: {
-                                        "Content-Type": "application/json",
-                                      },
-                                      body: JSON.stringify(payload),
-                                    })
-                                      .then((res) => res.json())
-                                      .then((response) => {
-                                        if (response.error) {
-                                           alert("Falha no pagamento: " + response.error);
-                                           reject();
-                                        } else if (response.status === 'approved') {
-                                           alert("Pagamento Aprovado com Sucesso!");
-                                           resolve();
-                                           if (role === 'admin' || role === 'desenvolvedor') {
-                                              setSelectedClient(null);
-                                              setViewState('select_client');
-                                           } else {
-                                              fetchBill(user!.id);
-                                           }
-                                        } else if (response.status === 'pending' && response.qr_code) {
-                                           setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64 });
-                                           resolve();
-                                        } else {
-                                           alert("Aviso: Status do pagamento é " + response.status_detail || response.status);
-                                           reject();
-                                        }
-                                      })
-                                      .catch((error) => {
-                                        alert("Falha de rede ao tentar processar cartão.");
-                                        reject();
-                                      });
-                                  });
-                                }}
-                                onError={async (error) => {
-                                  console.error("Erro interno no Brick do MP:", error);
-                                }}
-                                onReady={async () => {
-                                  console.log("Payment Brick Carregado com Sucesso");
-                                }}
-                              />
-                            </div>
-
-                            <div className="text-center text-xs font-bold text-slate-400 mb-2 mt-6 uppercase tracking-widest opacity-60">— Carteiras Digitais (Google Pay) —</div>
-                            <div className="mb-6 w-full">
-                              {!walletPreferenceId ? (
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.preventDefault(); loadWalletPreference(); }}
-                                  className="w-full p-4 border border-[#009EE3]/40 bg-[#009EE3]/10 text-[#009EE3] font-black rounded-xl flex items-center justify-center gap-2 hover:bg-[#009EE3]/20 transition-colors uppercase tracking-tight text-sm shadow-sm"
-                                >
-                                  <Smartphone className="w-5 h-5" />
-                                  Pagar com Google Pay / MP
-                                </button>
-                              ) : (
-                                <div className="bg-white rounded-xl shadow-sm border border-[#009EE3]/30 overflow-hidden relative z-10 w-full animate-in fade-in zoom-in duration-300">
-                                   <Wallet initialization={{ preferenceId: walletPreferenceId }} />
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="text-center text-xs font-bold text-slate-400 mb-2 mt-6 uppercase tracking-widest opacity-60">— Pagamento Físico (Loja) —</div>
-
-                            <button 
-                              type="button"
-                              onClick={async (e) => {
-                                e.preventDefault();
-                                try {
-                                  // Substitui window.confirm para evitar bloqueios silenciosos de navegadores!
-                                  setCreatingPreference(true); // Reusando estado de load para travar tela
-                                  const ids = billingItems.map((b: any) => b.id);
-                                  const req = await fetch('/api/admin/update-agendamento-status', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ appointmentIds: ids, status: 'pendente_dinheiro' })
-                                  });
-                                  const resData = await req.json();
-                                  
-                                  if (!req.ok) {
-                                     alert("Falha no Banco: " + resData.error);
-                                  } else {
-                                     alert('Pendente de pagamento no Caixa Físico!');
-                                     if (role === 'admin' || role === 'desenvolvedor') {
-                                        setSelectedClient(null);
-                                        setViewState('select_client');
-                                     } else {
-                                        fetchBill(user!.id);
-                                     }
-                                  }
-                                } catch (err: any) {
-                                  alert("Erro: " + err.message);
-                                } finally {
-                                  setCreatingPreference(false);
-                                }
-                              }}
-                              className="w-full p-4 border border-green-200 bg-green-50 text-green-700 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-green-100 transition-colors"
-                            >
-                               <Banknote className="w-5 h-5" />
-                               Dinheiro em Espécie (No Caixa)
-                            </button>
-
-                            {allowTab && (
-                              <button 
-                                type="button"
-                                onClick={async (e) => {
-                                    e.preventDefault();
-                                    try {
-                                      setCreatingPreference(true);
-                                      const ids = billingItems.map((b:any) => b.id);
-                                      const req = await fetch('/api/admin/update-agendamento-status', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ appointmentIds: ids, status: 'concluido', paymentMethod: 'fiado' })
-                                      });
-                                      const resData = await req.json();
-
-                                      if (!req.ok) {
-                                         alert("Falha: " + resData.error);
-                                      } else {
-                                         alert('Adicionado à sua conta com sucesso!');
-                                         if (role === 'admin' || role === 'desenvolvedor') {
-                                            setSelectedClient(null);
-                                            setViewState('select_client');
-                                         } else {
-                                            fetchBill(user!.id);
-                                         }
-                                      }
-                                    } catch(err:any) {
-                                       alert("Erro fatal: " + err.message);
-                                    } finally {
-                                      setCreatingPreference(false);
+                                    const req = await fetch("/api/pagamentos/process-payment", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify(payload),
+                                    });
+                                    const response = await req.json();
+                                    
+                                    if (response.error) {
+                                       alert("Falha ao gerar PIX: " + response.error);
+                                    } else if (response.status === 'pending' && response.qr_code) {
+                                       setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64 });
+                                    } else {
+                                       alert("Status Inesperado: " + response.status);
                                     }
+                                  } catch (err: any) {
+                                    alert("Falha de rede ao tentar gerar PIX.");
+                                  } finally {
+                                    setCreatingPreference(false);
+                                  }
                                 }}
-                                className="w-full p-4 border border-amber-200 bg-amber-50 text-amber-700 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-amber-100 transition-colors"
+                                className="w-full p-4 border border-[#32BCAD]/40 bg-[#32BCAD]/10 text-[#32BCAD] font-black rounded-xl flex items-center justify-center gap-2 hover:bg-[#32BCAD]/20 transition-colors uppercase tracking-tight text-sm my-4 shadow-sm"
                               >
-                                 <History className="w-5 h-5" />
-                                 Pendurar / Colocar na Minha Conta
+                                <Smartphone className="w-5 h-5" />
+                                Gerar PIX Rápido
                               </button>
-                            )}
-                            
-                            <button onClick={() => setShowPaymentOptions(false)} className="w-full mt-2 text-xs text-slate-400 font-medium py-2 hover:text-slate-600">
-                               Voltar
-                            </button>
-                          </div>
                         )}
-                        
-                        {!showPaymentOptions && (
+
+                              <div className="text-center text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest opacity-60">— Pague com Cartão —</div>
+
+                              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-4 relative z-10 w-full">
+                               <Payment
+                                 initialization={{
+                                   amount: Number(total.toFixed(2)),
+                                   payer: {
+                                     email: user?.email || 'cliente@privasconails.com'
+                                   }
+                                 }}
+                                 customization={{
+                                   paymentMethods: {
+                                     creditCard: "all",
+                                     debitCard: "all"
+                                   },
+                                 }}
+                                 onSubmit={async (param: any) => {
+                               return new Promise<void>((resolve, reject) => {
+                                const payload = {
+                                  ...param.formData,
+                                  appointmentIds: billingItems.map((b: any) => b.id)
+                                };
+                                
+                                fetch("/api/pagamentos/process-payment", {
+                                  method: "POST",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                  },
+                                  body: JSON.stringify(payload),
+                                })
+                                  .then((res) => res.json())
+                                  .then((response) => {
+                                    if (response.error) {
+                                       alert("Falha no pagamento: " + response.error);
+                                       reject();
+                                    } else if (response.status === 'approved') {
+                                       alert("Pagamento Aprovado com Sucesso!");
+                                       resolve();
+                                       if (role === 'admin' || role === 'desenvolvedor') {
+                                          setSelectedClient(null);
+                                          setViewState('select_client');
+                                       } else {
+                                          fetchBill(user!.id);
+                                       }
+                                    } else if (response.status === 'pending' && response.qr_code) {
+                                       setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64 });
+                                       resolve();
+                                    } else {
+                                       alert("Aviso: Status do pagamento é " + response.status_detail || response.status);
+                                       reject();
+                                    }
+                                  })
+                                  .catch((error) => {
+                                    alert("Falha de rede ao tentar processar cartão.");
+                                    reject();
+                                  });
+                              });
+                            }}
+                            onError={async (error) => {
+                              console.error("Erro interno no Brick do MP:", error);
+                            }}
+                            onReady={async () => {
+                              console.log("Payment Brick Carregado com Sucesso");
+                            }}
+                          />
+                        </div>
+
+                        <div className="text-center text-xs font-bold text-slate-400 mb-2 mt-6 uppercase tracking-widest opacity-60">— Carteiras Digitais (Google Pay) —</div>
+                        <div className="mb-6 w-full">
+                          {!walletPreferenceId ? (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); loadWalletPreference(); }}
+                              className="w-full p-4 border border-[#009EE3]/40 bg-[#009EE3]/10 text-[#009EE3] font-black rounded-xl flex items-center justify-center gap-2 hover:bg-[#009EE3]/20 transition-colors uppercase tracking-tight text-sm shadow-sm"
+                            >
+                              <Smartphone className="w-5 h-5" />
+                              Pagar com Google Pay / MP
+                            </button>
+                          ) : (
+                            <div className="bg-white rounded-xl shadow-sm border border-[#009EE3]/30 overflow-hidden relative z-10 w-full animate-in fade-in zoom-in duration-300">
+                               <Wallet initialization={{ preferenceId: walletPreferenceId }} />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="text-center text-xs font-bold text-slate-400 mb-2 mt-6 uppercase tracking-widest opacity-60">— Pagamento Físico (Loja) —</div>
+
+                        <button 
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (role === 'admin' || role === 'desenvolvedor') {
+                              handleManualPayment('aproximacao_celular');
+                            } else {
+                              handlePendingRequest('pendente_aproximacao', 'Pendente de pagamento por Aproximação!');
+                            }
+                          }}
+                          className="w-full p-4 border border-indigo-200 bg-indigo-50 text-indigo-700 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-100 transition-colors"
+                        >
+                           <Smartphone className="w-5 h-5" />
+                           Aproximação Celular / Maquininha
+                        </button>
+
+                        <button 
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (role === 'admin' || role === 'desenvolvedor') {
+                              handleManualPayment('dinheiro_caixa');
+                            } else {
+                              handlePendingRequest('pendente_dinheiro', 'Pendente de pagamento no Caixa Físico!');
+                            }
+                          }}
+                          className="w-full p-4 border border-green-200 bg-green-50 text-green-700 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-green-100 transition-colors"
+                        >
+                           <Banknote className="w-5 h-5" />
+                           Dinheiro em Espécie (No Caixa)
+                        </button>
+
+                        {allowTab && (
                           <button 
-                            onClick={() => setShowDisputeModal(true)}
-                            className="w-full flex justify-center text-sm font-bold text-slate-400 hover:text-rose-500 py-3"
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                handlePendingRequest('fiado', 'Adicionado à sua conta com sucesso!');
+                            }}
+                            className="w-full p-4 border border-amber-200 bg-amber-50 text-amber-700 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-amber-100 transition-colors"
                           >
-                            Encontrou um erro na comanda? Clique aqui.
+                             <History className="w-5 h-5" />
+                             Pendurar / Colocar na Minha Conta
                           </button>
                         )}
-                      </>
+                        
+                        <button onClick={() => setShowPaymentOptions(false)} className="w-full mt-2 text-xs text-slate-400 font-medium py-2 hover:text-slate-600">
+                           Voltar
+                        </button>
+                      </div>
+                    )}
+                    
+                    {!showPaymentOptions && (
+                      <button 
+                        onClick={() => setShowDisputeModal(true)}
+                        className="w-full flex justify-center text-sm font-bold text-slate-400 hover:text-rose-500 py-3"
+                      >
+                        Encontrou um erro na comanda? Clique aqui.
+                      </button>
                     )}
                   </div>
                 )}
