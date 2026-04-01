@@ -765,7 +765,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                             {availableServices.map((grp, gIdx) => (
                                               <optgroup key={gIdx} label={grp.category?.toUpperCase() || 'SERVIÇOS'}>
                                                 {grp.items.map((svc: {name: string, price: number}, sIdx: number) => (
-                                                   <option key={`${gIdx}-${sIdx}`} value={svc.name}>{svc.name} - R$ {svc.price},00</option>
+                                                   <option key={`${gIdx}-${sIdx}`} value={svc.name}>{svc.name} - R$ {svc.price.toFixed(2).replace('.', ',')}</option>
                                                 ))}
                                               </optgroup>
                                             ))}
@@ -910,7 +910,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                             {availableServices.map((grp, gIdx) => (
                                               <optgroup key={gIdx} label={grp.category?.toUpperCase() || 'SERVIÇOS'}>
                                                 {grp.items.map((svc: {name: string, price: number}, sIdx: number) => (
-                                                   <option key={`${gIdx}-${sIdx}`} value={svc.name}>{svc.name} - R$ {svc.price},00</option>
+                                                   <option key={`${gIdx}-${sIdx}`} value={svc.name}>{svc.name} - R$ {svc.price.toFixed(2).replace('.', ',')}</option>
                                                 ))}
                                               </optgroup>
                                             ))}

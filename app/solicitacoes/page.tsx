@@ -267,7 +267,7 @@ const SolicitacoesPage = () => {
                                     "{request.data.message}"
                                   </p>
                                   {request.data.total_claimed && (
-                                    <p className="text-xs text-slate-500 font-mono mt-2">Valor da Comanda: R$ {request.data.total_claimed}</p>
+                                    <p className="text-xs text-slate-500 font-mono mt-2">Valor da Comanda: R$ {Number(request.data.total_claimed).toFixed(2).replace('.', ',')}</p>
                                   )}
                                 </div>
                               ) : (

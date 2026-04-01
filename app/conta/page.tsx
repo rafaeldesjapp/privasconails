@@ -102,9 +102,7 @@ export default function ContaPage() {
   }, [user, role]);
 
   const loadPrices = async () => {
-    const { data } = await supabase.from('configuracoes').select('valor').eq('id', 'tabela_precos').maybeSingle();
-    
-    // Categorias padrão servindo como fallback caso RLS bloqueie a query da tabela configuracoes
+    // Categorias padrão servindo como fallback caso ocorra erro
     const DEFAULT_CATEGORIES = [
       { category: 'Unhas Simples', items: [{name: 'Mão', price: 30}, {name: 'Pé', price: 30}, {name: 'Pé e Mão Simples', price: 50}, {name: 'Pé e Mão Decorado', price: 55}] },
       { category: 'Alongamento', items: [{name: 'Postiça Realista', price: 60}, {name: 'Banho de Gel', price: 80}, {name: 'Acrigel', price: 129}, {name: 'Fibra de Vidro', price: 160}] },
@@ -122,18 +120,28 @@ export default function ContaPage() {
       });
     };
 
-    let dataValor = data?.valor;
-    if (typeof dataValor === 'string') {
-       try {
-         dataValor = JSON.parse(dataValor);
-       } catch(e) {}
-    }
+    try {
+      const response = await fetch('/api/configuracoes/get', { cache: 'no-store' });
+      const res = await response.json();
 
-    if (dataValor && Array.isArray(dataValor)) {
-      processCategories(dataValor);
-    } else {
+      let dataValor = res?.data?.tabela_precos;
+      
+      if (typeof dataValor === 'string') {
+         try {
+           dataValor = JSON.parse(dataValor);
+         } catch(e) {}
+      }
+
+      if (dataValor && Array.isArray(dataValor)) {
+        processCategories(dataValor);
+      } else {
+        processCategories(DEFAULT_CATEGORIES);
+      }
+    } catch(err) {
+      console.error('Erro ao buscar tabela:', err);
       processCategories(DEFAULT_CATEGORIES);
     }
+    
     setPricesLookup(lookup);
   };
 
@@ -398,7 +406,7 @@ export default function ContaPage() {
                                  </div>
                                  <div className="flex-grow border-b-2 border-dotted border-slate-300 mx-2 opacity-50 relative top-[-4px]"></div>
                                  <div className="shrink-0 bg-[#fcfbf7] pl-1">
-                                   {lineTotal > 0 ? `R$ ${lineTotal},00` : '--'}
+                                   {lineTotal > 0 ? `R$ ${lineTotal.toFixed(2).replace('.', ',')}` : '--'}
                                  </div>
                                </div>
                              )
