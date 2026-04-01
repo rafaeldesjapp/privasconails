@@ -560,6 +560,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                 const blockRecord = blockedDays.find(b => b.date === dateStr);
                 const isThisDayBlocked = !!blockRecord;
                 const isSelected = isSameDay(day, currentDate);
+                const isHoliday = holidays.some(h => h.date === dateStr);
 
                 return (
                   <div 
@@ -576,10 +577,10 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                         }
                       }}
                       className={cn(
-                        "w-7 h-7 md:w-10 md:h-10 mx-auto rounded-full flex items-center justify-center text-xs md:text-sm font-medium transition-all relative",
+                        "w-7 h-7 md:w-10 md:h-10 mx-auto rounded-full flex items-center justify-center text-xs md:text-sm font-medium transition-all relative font-[600]",
                         isSelected 
                           ? "bg-gradient-to-br from-pink-500 to-orange-400 text-white shadow-md shadow-pink-500/30 scale-110" 
-                          : "text-slate-600 hover:bg-pink-50",
+                          : isHoliday ? "text-rose-600 bg-rose-50/70 border border-rose-100 font-bold" : "text-slate-600 hover:bg-pink-50",
                         isThisDayBlocked && !isSelected && "bg-red-50 text-red-500 border border-red-200"
                       )}
                     >
@@ -692,6 +693,15 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                         <p className="text-sm md:text-lg font-bold text-slate-500">
                           {format(currentDate, "dd 'de' MMMM", { locale: ptBR })}
                         </p>
+                        {(() => {
+                           const todayHoliday = holidays.find(h => h.date === format(currentDate, 'yyyy-MM-dd'));
+                           if (!todayHoliday) return null;
+                           return (
+                             <div className="md:hidden flex items-center gap-1 bg-rose-50 border border-rose-100 text-[10px] font-black text-rose-500 px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
+                                <CalIcon className="w-3 h-3" /> {todayHoliday.name}
+                             </div>
+                           )
+                        })()}
                         {isAdminView && (
                           isDayBlocked ? (
                             <button 
