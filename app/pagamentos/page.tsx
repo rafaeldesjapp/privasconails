@@ -20,6 +20,8 @@ export default function PagamentosPage() {
   const [activeTab, setActiveTab] = useState<'extrato' | 'configs'>('extrato');
   
   const [extrato, setExtrato] = useState<any[]>([]);
+  const [pendentes, setPendentes] = useState<any[]>([]);
+  const [pricesLookup, setPricesLookup] = useState<Record<string, number>>({});
   const [isLoadingData, setIsLoadingData] = useState(true);
 
   // Configurações (Admin)
@@ -34,12 +36,11 @@ export default function PagamentosPage() {
     async function fetchData() {
       try {
         setIsLoadingData(true);
-        // Busca o extrato de agendamentos que têm payment_method
+        // Busca o extrato de transacoes
         let q = supabase
-          .from('agendamentos')
-          .select('id, client_name, service, date, time, status, user_id, payment_method, updated_at')
-          .not('payment_method', 'is', null)
-          .order('updated_at', { ascending: false });
+          .from('transacoes')
+          .select('*')
+          .order('created_at', { ascending: false });
           
         if (role === 'cliente') {
            q = q.eq('user_id', user!.id);
@@ -64,7 +65,31 @@ export default function PagamentosPage() {
                 const pub = configData.find((c: any) => c.id === 'MERCADO_PAGO_PUBLIC_KEY');
                 if (acc) setMpAccess(acc.valor);
                 if (pub) setMpPublic(pub.valor);
+
+                const tab = configData.find((c: any) => c.id === 'tabela_precos');
+                if (tab) {
+                    let dataValor = tab.valor;
+                    if (typeof dataValor === 'string') try { dataValor = JSON.parse(dataValor); } catch(e){}
+                    const lookup: Record<string, number> = {};
+                    if (Array.isArray(dataValor)) {
+                        dataValor.forEach((cat: any) => {
+                            if (cat.items) cat.items.forEach((it: any) => { lookup[it.name] = Number(it.price); });
+                            else if (cat.itens) cat.itens.forEach((it: any) => { lookup[it.nome] = Number(it.preco); });
+                        });
+                    }
+                    setPricesLookup(lookup);
+                }
              }
+
+             // Busca agendamentos pendentes
+             const { data: pendData } = await supabase
+               .from('agendamentos')
+               .select('*')
+               .in('status', ['pendente_dinheiro', 'pendente_aproximacao'])
+               .order('date', { ascending: false });
+               
+             if (pendData && isMounted) setPendentes(pendData);
+
            } catch(e) {}
         }
         
@@ -107,19 +132,64 @@ export default function PagamentosPage() {
     }
   };
 
+  const parseServicesObj = (str: string) => {
+    if (!str) return [{ qty: 1, name: '' }];
+    return str.split(' + ').map(p => {
+      const match = p.match(/^(\d+)x\s+(.*)$/);
+      if (match) return { qty: Number(match[1]), name: match[2] };
+      return { qty: 1, name: p };
+    });
+  };
+
+  const handleApprovePending = async (p: any) => {
+    setIsLoadingData(true);
+    try {
+      let total = 0;
+      let coreStr = p.service;
+      if (coreStr.includes(' | ')) coreStr = coreStr.split(' | ')[0];
+      const parsed = parseServicesObj(coreStr);
+      parsed.forEach(sub => {
+        total += (pricesLookup[sub.name] || 0) * sub.qty;
+      });
+
+      const pm = p.status === 'pendente_dinheiro' ? 'dinheiro_caixa' : 'aproximacao_celular';
+
+      const { error: err1 } = await supabase.from('agendamentos').update({ status: 'concluido', payment_method: pm }).eq('id', p.id);
+      if (err1) throw err1;
+      
+      const { error: err2 } = await supabase.from('transacoes').insert({
+         user_id: p.user_id,
+         client_name: p.client_name,
+         amount: total,
+         payment_method: pm,
+         status: 'approved',
+         services_desc: coreStr
+      });
+      if (err2) throw err2;
+
+      window.location.reload();
+    } catch (err: any) {
+      console.error(err);
+      alert("Erro ao aprovar: " + (err.message || 'Erro desconhecido.'));
+      setIsLoadingData(false);
+    }
+  };
+
   const calcularMetricas = () => {
      let pix = 0;
      let cartao = 0;
      let dinheiro = 0;
      
      extrato.forEach(e => {
+       if (e.status !== 'approved') return;
        const p = e.payment_method?.toLowerCase() || '';
        if (p.includes('pix')) pix++;
        else if (p.includes('dinheiro') || p.includes('espécie')) dinheiro++;
        else cartao++; // Maquininha, Mercado Pago, PicPay, Crédito, Débito caem aqui
      });
      
-     return { total: extrato.length, pix, cartao, dinheiro };
+     const approvedTotal = extrato.filter(e => e.status === 'approved').length;
+     return { total: approvedTotal, pix, cartao, dinheiro };
   };
 
   if (loading) {
@@ -217,6 +287,35 @@ export default function PagamentosPage() {
                    </div>
                  )}
 
+                 {/* Fila de Aprovação Analógica */}
+                 {(role === 'admin' || role === 'desenvolvedor') && pendentes.length > 0 && (
+                    <div className="bg-amber-50 rounded-2xl border border-amber-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-2">
+                      <div className="px-6 py-4 border-b border-amber-200/50 flex items-center gap-3">
+                         <ShieldAlert className="w-5 h-5 text-amber-600" />
+                         <h2 className="font-bold text-amber-800 text-lg">Aguardando Avaliação no Caixa</h2>
+                      </div>
+                      <div className="p-4 flex flex-col gap-3">
+                        {pendentes.map(p => (
+                          <div key={p.id} className="bg-white p-4 rounded-xl shadow-sm border border-amber-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                             <div>
+                               <p className="font-bold text-slate-800">{p.client_name}</p>
+                               <p className="text-sm font-medium text-slate-500">{p.service} <span className="text-xs ml-2 text-slate-400">({p.time})</span></p>
+                               <p className="text-xs font-black text-amber-600 uppercase mt-1 tracking-wider">
+                                  {p.status === 'pendente_dinheiro' ? 'Físico / Dinheiro' : 'Maquininha'}
+                               </p>
+                             </div>
+                             <button 
+                                onClick={() => handleApprovePending(p)}
+                                className="w-full sm:w-auto px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm"
+                             >
+                               <CheckCircle2 className="w-4 h-4" /> Aprovar Baixa
+                             </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                 )}
+
                  {/* Tabela de Extrato */}
                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
@@ -256,7 +355,10 @@ export default function PagamentosPage() {
                            </thead>
                            <tbody className="divide-y divide-slate-50">
                              {extrato.map((item) => {
-                                const d = parseISO(item.updated_at || item.created_at);
+                                const d = parseISO(item.created_at);
+                                const isApproved = item.status === 'approved';
+                                const isPending = item.status === 'pending';
+                                
                                 return (
                                  <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
                                    <td className="px-6 py-4 whitespace-nowrap">
@@ -265,7 +367,8 @@ export default function PagamentosPage() {
                                    </td>
                                    <td className="px-6 py-4">
                                       <div className="text-sm font-bold text-slate-800 line-clamp-1">{item.client_name}</div>
-                                      <div className="text-xs font-medium text-slate-500 mt-0.5 line-clamp-1">{item.service}</div>
+                                      <div className="text-xs font-medium text-slate-500 mt-0.5 line-clamp-1">{item.services_desc}</div>
+                                      <div className="text-xs font-black text-slate-700 mt-1">R$ {Number(item.amount).toFixed(2).replace('.', ',')}</div>
                                    </td>
                                    <td className="px-6 py-4 whitespace-nowrap">
                                       <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold capitalize border border-slate-200">
@@ -276,10 +379,22 @@ export default function PagamentosPage() {
                                       </div>
                                    </td>
                                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                                      <div className="inline-flex items-center gap-1 text-emerald-600">
-                                         <CheckCircle2 className="w-4 h-4" />
-                                         <span className="text-xs font-black uppercase tracking-widest">Liquidado</span>
-                                      </div>
+                                      {isApproved ? (
+                                        <div className="inline-flex items-center justify-end gap-1 text-emerald-600">
+                                           <CheckCircle2 className="w-4 h-4" />
+                                           <span className="text-xs font-black uppercase tracking-widest">Aprovado</span>
+                                        </div>
+                                      ) : isPending ? (
+                                        <div className="inline-flex items-center justify-end gap-1 text-amber-500">
+                                           <RefreshCw className="w-4 h-4 animate-spin-slow" />
+                                           <span className="text-xs font-black uppercase tracking-widest">Pendente</span>
+                                        </div>
+                                      ) : (
+                                        <div className="inline-flex items-center justify-end gap-1 text-rose-500">
+                                           <ShieldAlert className="w-4 h-4" />
+                                           <span className="text-xs font-black uppercase tracking-widest">Recusado</span>
+                                        </div>
+                                      )}
                                    </td>
                                  </tr>
                                 );

@@ -59,13 +59,14 @@ export default function ContaPage() {
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [disputeMessage, setDisputeMessage] = useState('');
   const [submittingDispute, setSubmittingDispute] = useState(false);
+  const [selectedDisputeItems, setSelectedDisputeItems] = useState<string[]>([]);
   
   const [paymentAppointmentId, setPaymentAppointmentId] = useState<string | null>(null);
 
   // Novos Estados de Pagamento
   const [allowTab, setAllowTab] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
-  const [pixData, setPixData] = useState<{qr_code: string, qr_code_base64: string} | null>(null);
+  const [pixData, setPixData] = useState<{qr_code: string, qr_code_base64: string, payment_id?: string} | null>(null);
   const [creatingPreference, setCreatingPreference] = useState(false);
   const [walletPreferenceId, setWalletPreferenceId] = useState<string | null>(null);
 
@@ -86,6 +87,42 @@ export default function ContaPage() {
       setCreatingPreference(false);
     }
   };
+
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
+    if (pixData?.payment_id && billingItems.length > 0) {
+      intervalId = setInterval(async () => {
+        try {
+          const apIds = billingItems.map(b => b.id).join(',');
+          const req = await fetch(`/api/pagamentos/check-status?paymentId=${pixData.payment_id}&appointmentIds=${apIds}`);
+          
+          if (req.ok) {
+            const res = await req.json();
+            
+            if (res.status === 'approved') {
+               clearInterval(intervalId);
+               alert('Pagamento Automático via PIX Confirmado com Sucesso!');
+               setPixData(null);
+               
+               if (role === 'admin' || role === 'desenvolvedor') {
+                 setSelectedClient(null);
+                 setViewState('select_client');
+               } else {
+                 if (user) fetchBill(user.id);
+               }
+            }
+          }
+        } catch(e) {
+          console.error("Erro automação PIX", e);
+        }
+      }, 5000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [pixData, billingItems, role, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -159,12 +196,12 @@ export default function ContaPage() {
        if (profile?.allow_tab) setAllowTab(true);
     }
     
-    // Pegando todos da agenda que estao agendados e sem pagamento
+    // Pegando todos da agenda que estao agendados ou pendentes
     const { data, error } = await supabase
       .from('agendamentos')
       .select('*')
       .eq('user_id', targetId)
-      .eq('status', 'agendado')
+      .in('status', ['agendado', 'pendente_dinheiro', 'pendente_aproximacao'])
       .is('payment_method', null);
 
     if (error) {
@@ -209,6 +246,21 @@ export default function ContaPage() {
       // Ideally an RPC or bulk upsert. Supabase `upsert` can work if we provide id cleanly.
       const { error } = await supabase.from('agendamentos').upsert(updates);
       if (error) throw error;
+      
+      const transacaoLog = {
+         user_id: selectedClient?.id || user?.id,
+         client_name: selectedClient?.name || user?.user_metadata?.full_name || 'Desconhecido',
+         amount: total,
+         payment_method: methodString,
+         status: 'approved',
+         services_desc: billingItems.map(b => {
+             let svc = b.service;
+             if (svc.includes(' | ')) svc = svc.split(' | ')[0];
+             return svc;
+         }).join(' + ')
+      };
+      await supabase.from('transacoes').insert(transacaoLog);
+
       alert('Baixa concluída com sucesso.');
       if (role === 'admin' || role === 'desenvolvedor') {
         setSelectedClient(null);
@@ -252,16 +304,33 @@ export default function ContaPage() {
 
   const handleSubmitDispute = async () => {
     if (!disputeMessage.trim()) return alert('Escreva o motivo da sua discordância.');
+    if (selectedDisputeItems.length === 0) return alert('Selecione pelo menos um item para contestar.');
     setSubmittingDispute(true);
     try {
+      const contestedItemsData = billingItems.filter(b => selectedDisputeItems.includes(b.id));
+      let contestedTotal = 0;
+      const names: string[] = [];
+      
+      contestedItemsData.forEach(item => {
+        let coreStr = item.service;
+        if (coreStr.includes(' | ')) coreStr = coreStr.split(' | ')[0];
+        const parsedArray = parseServicesObj(coreStr);
+        parsedArray.forEach(sub => {
+          const precoItem = pricesLookup[sub.name] || 0;
+          contestedTotal += (precoItem * sub.qty);
+          names.push(`${sub.qty}x ${sub.name}`);
+        });
+      });
+
       const payload = {
         user_id: user?.id,
         type: 'question_charge',
         status: 'pendente',
         data: {
           message: disputeMessage,
-          appointment_ids: billingItems.map(b => b.id),
-          total_claimed: total
+          appointment_ids: selectedDisputeItems,
+          total_claimed: contestedTotal,
+          contested_services_names: names
         }
       };
       
@@ -430,8 +499,25 @@ export default function ContaPage() {
                 </div>
 
                 {/* Acões Finais */}
-                {billingItems.length > 0 && (
-                  <div className="mt-8 space-y-3">
+                {billingItems.length > 0 && (() => {
+                  const isPendingApproval = billingItems.some(b => ['pendente_dinheiro', 'pendente_aproximacao'].includes(b.status));
+
+                  if (isPendingApproval) {
+                    return (
+                      <div className="mt-8 bg-amber-50/80 rounded-2xl p-6 border-2 border-amber-300 border-dashed text-center shadow-sm relative z-10 w-full animate-in fade-in slide-in-from-bottom-2">
+                        <div className="w-12 h-12 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <History className="w-6 h-6 animate-pulse" />
+                        </div>
+                        <h4 className="font-black text-amber-800 text-lg uppercase tracking-tight mb-1">Aguardando Baixa...</h4>
+                        <p className="text-amber-700 text-sm font-medium">
+                          Identificamos sua solicitação. O caixa validará o recebimento físico e sua conta sumirá em breve.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="mt-8 space-y-3">
                     {!showPaymentOptions ? (
                       <button 
                         onClick={() => setShowPaymentOptions(true)}
@@ -510,7 +596,9 @@ export default function ContaPage() {
                                       transaction_amount: Number(total.toFixed(2)),
                                       payment_method_id: 'pix',
                                       payer: { email: user?.email || 'cliente@privasconails.com' },
-                                      appointmentIds: billingItems.map((b: any) => b.id)
+                                      appointmentIds: billingItems.map((b: any) => b.id),
+                                      userId: selectedClient?.id || user?.id,
+                                      clientName: selectedClient?.name || user?.user_metadata?.full_name || 'Desconhecido'
                                     };
                                     
                                     const req = await fetch("/api/pagamentos/process-payment", {
@@ -523,7 +611,7 @@ export default function ContaPage() {
                                     if (response.error) {
                                        alert("Falha ao gerar PIX: " + response.error);
                                     } else if (response.status === 'pending' && response.qr_code) {
-                                       setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64 });
+                                       setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64, payment_id: response.id });
                                     } else {
                                        alert("Status Inesperado: " + response.status);
                                     }
@@ -560,7 +648,9 @@ export default function ContaPage() {
                                return new Promise<void>((resolve, reject) => {
                                 const payload = {
                                   ...param.formData,
-                                  appointmentIds: billingItems.map((b: any) => b.id)
+                                  appointmentIds: billingItems.map((b: any) => b.id),
+                                  userId: selectedClient?.id || user?.id,
+                                  clientName: selectedClient?.name || user?.user_metadata?.full_name || 'Desconhecido'
                                 };
                                 
                                 fetch("/api/pagamentos/process-payment", {
@@ -585,7 +675,7 @@ export default function ContaPage() {
                                           fetchBill(user!.id);
                                        }
                                     } else if (response.status === 'pending' && response.qr_code) {
-                                       setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64 });
+                                       setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64, payment_id: response.id });
                                        resolve();
                                     } else {
                                        alert("Aviso: Status do pagamento é " + response.status_detail || response.status);
@@ -681,14 +771,19 @@ export default function ContaPage() {
                     
                     {!showPaymentOptions && (
                       <button 
-                        onClick={() => setShowDisputeModal(true)}
+                        onClick={() => {
+                          setSelectedDisputeItems(billingItems.map(b => b.id));
+                          setDisputeMessage('');
+                          setShowDisputeModal(true);
+                        }}
                         className="w-full flex justify-center text-sm font-bold text-slate-400 hover:text-rose-500 py-3"
                       >
                         Encontrou um erro na comanda? Clique aqui.
                       </button>
                     )}
                   </div>
-                )}
+                  );
+                })()}
               </div>
             )}
             
@@ -713,19 +808,40 @@ export default function ContaPage() {
               </div>
               
               <h3 className="text-xl font-black text-center text-slate-800 mb-2">Constestar Fatura</h3>
-              <p className="text-sm text-center text-slate-500 mb-6">Descreva no campo abaixo o que está diferente do que você consumiu presencialmente.</p>
+              <p className="text-sm text-center text-slate-500 mb-4">Selecione os itens que deseja contestar e descreva o motivo.</p>
               
+              <div className="max-h-40 overflow-y-auto mb-4 bg-slate-50 border border-slate-200 rounded-xl p-2 space-y-1">
+                {billingItems.map(item => {
+                  let coreStr = item.service;
+                  if (coreStr.includes(' | ')) coreStr = coreStr.split(' | ')[0];
+                  return (
+                    <label key={item.id} className="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors">
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 text-rose-500 rounded border-slate-300 focus:ring-rose-500"
+                        checked={selectedDisputeItems.includes(item.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedDisputeItems([...selectedDisputeItems, item.id]);
+                          else setSelectedDisputeItems(selectedDisputeItems.filter(id => id !== item.id));
+                        }}
+                      />
+                      <span className="text-sm text-slate-700 font-medium truncate">{coreStr}</span>
+                    </label>
+                  );
+                })}
+              </div>
+
               <textarea
                 value={disputeMessage}
                 onChange={e => setDisputeMessage(e.target.value)}
-                placeholder="Exemplo: Faltou descontar 30 reais do que paguei adiantado."
-                className="w-full h-32 bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-700 outline-none focus:border-rose-400 resize-none mb-4"
+                placeholder="Exemplo: Cancelei esse serviço antes do início e ainda está cobrando."
+                className="w-full h-24 bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-700 outline-none focus:border-rose-400 resize-none mb-4"
               />
               
               <button 
                 onClick={handleSubmitDispute}
-                disabled={submittingDispute}
-                className="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-xl shadow-md transition-colors disabled:opacity-50"
+                disabled={submittingDispute || selectedDisputeItems.length === 0 || !disputeMessage.trim()}
+                className="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-xl shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submittingDispute ? 'Enviando...' : 'Enviar Questionamento'}
               </button>

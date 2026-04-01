@@ -19,7 +19,9 @@ export async function POST(req: Request) {
       payment_method_id, 
       issuer_id, 
       payer, 
-      appointmentIds 
+      appointmentIds,
+      userId,
+      clientName
     } = body;
 
     // Validate request
@@ -57,17 +59,27 @@ export async function POST(req: Request) {
       }
     });
 
-    // Validar aprovação MP
-    if (result.status === 'approved') {
-       // Se o pagamento no cartão for Aprovado na hora, baixamos a comanda imediatamente!
-       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-       const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    // Validar aprovação MP e Registrar na tabela transacoes
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (supabaseUrl && supabaseServiceKey) {
+       const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+         auth: { autoRefreshToken: false, persistSession: false }
+       });
 
-       if (supabaseUrl && supabaseServiceKey) {
-           const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-             auth: { autoRefreshToken: false, persistSession: false }
-           });
-           
+       // Salva extrato no novo cofre
+       await supabaseAdmin.from('transacoes').insert({
+          user_id: userId || null,
+          client_name: clientName || 'Desconhecido',
+          amount: Number(transaction_amount),
+          payment_method: payment_method_id,
+          status: result.status,
+          services_desc: description || 'Serviços de Salão',
+          mp_id: result.id?.toString()
+       });
+
+       if (result.status === 'approved') {
            await supabaseAdmin
             .from('agendamentos')
             .update({ 

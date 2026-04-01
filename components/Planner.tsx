@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, CheckCircle2, Clock, Plus, Trash2, Calendar as CalIcon, Lock, Unlock, AlertOctagon, Pencil, Save, X, GripVertical, Users, Banknote } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
-import { format, addDays, subDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getMonth, getYear } from 'date-fns';
+import { format, addDays, subDays, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getMonth, getYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Agendamento {
@@ -501,6 +501,22 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                   {format(currentDate, "MMMM yyyy", { locale: ptBR })}
                 </h2>
               </div>
+              <div className="flex gap-1">
+                <button 
+                  onClick={() => setCurrentDate(prev => subMonths(prev, 1))} 
+                  className="p-1.5 md:p-2 bg-slate-50 rounded-full shadow-sm hover:bg-pink-50 hover:text-pink-600 text-slate-400 transition-colors border border-slate-200/60"
+                  title="Mês Anterior"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => setCurrentDate(prev => addMonths(prev, 1))} 
+                  className="p-1.5 md:p-2 bg-slate-50 rounded-full shadow-sm hover:bg-pink-50 hover:text-pink-600 text-slate-400 transition-colors border border-slate-200/60"
+                  title="Próximo Mês"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-7 gap-1 text-center mb-4">
@@ -824,9 +840,14 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                             <GripVertical className="w-4 h-4" />
                                           </div>
                                         )}
-                                        <span className="font-medium text-sm">
+                                        <span className="font-medium text-sm truncate flex-1 block">
                                           {isAdminView || isMine ? `${age.client_name} - ${age.service}` : 'Agendado'}
                                         </span>
+                                        {age.status === 'concluido' && (
+                                          <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-black bg-green-200 text-green-800 uppercase tracking-widest border border-green-300 shadow-sm shrink-0">
+                                            ✓ PG
+                                          </span>
+                                        )}
                                       </div>
 
                                       {(isAdminView || isMine) && (

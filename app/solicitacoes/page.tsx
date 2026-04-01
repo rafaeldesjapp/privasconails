@@ -266,8 +266,18 @@ const SolicitacoesPage = () => {
                                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                                     "{request.data.message}"
                                   </p>
-                                  {request.data.total_claimed && (
-                                    <p className="text-xs text-slate-500 font-mono mt-2">Valor da Comanda: R$ {Number(request.data.total_claimed).toFixed(2).replace('.', ',')}</p>
+                                  {request.data.contested_services_names && request.data.contested_services_names.length > 0 && (
+                                    <div className="mt-2 text-xs text-rose-500/80 font-medium bg-rose-50 p-2 rounded-lg border border-rose-100">
+                                      <p className="font-bold text-rose-700 mb-1">Itens contestados especificamente:</p>
+                                      <ul className="list-disc list-inside space-y-0.5">
+                                        {request.data.contested_services_names.map((n: string, i: number) => (
+                                          <li key={i}>{n}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                  {request.data.total_claimed !== undefined && (
+                                    <p className="text-xs text-slate-500 font-mono mt-2">Valor Relacionado: R$ {Number(request.data.total_claimed).toFixed(2).replace('.', ',')}</p>
                                   )}
                                 </div>
                               ) : (
