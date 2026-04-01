@@ -58,6 +58,9 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   const [dragSource, setDragSource] = useState<Agendamento | null>(null);
   const [dragCurrentTime, setDragCurrentTime] = useState<string | null>(null);
 
+  // Estados de Feriados
+  const [holidays, setHolidays] = useState<{date: string, name: string, type: string}[]>([]);
+
   // Estados do WhatsApp e Serviços
   const [studioWhatsapp, setStudioWhatsapp] = useState<string | null>(null);
   const [pendingBooking, setPendingBooking] = useState<{ time: string, service: string } | null>(null);
@@ -130,6 +133,35 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       });
     }
   }, [isAdminView]);
+
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      try {
+        const year = getYear(currentDate);
+        const res = await fetch(`https://brasilapi.com.br/api/feriados/v1/${year}`);
+        const nHolidays = res.ok ? await res.json() : [];
+        
+        const rjHolidays = [
+          { date: `${year}-01-20`, name: 'São Sebastião (Padroeiro)', type: 'Municipal' },
+          { date: `${year}-04-23`, name: 'São Jorge', type: 'Estadual' },
+          { date: `${year}-11-20`, name: 'Consciência Negra', type: 'Estadual' } 
+        ];
+
+        const allHolidays = nHolidays.map((h: any) => ({ date: h.date, name: h.name, type: 'Nacional' }));
+        rjHolidays.forEach(r => {
+           if (!allHolidays.some((a: any) => a.date === r.date)) {
+               allHolidays.push(r);
+           }
+        });
+
+        allHolidays.sort((a: any, b: any) => a.date.localeCompare(b.date));
+        setHolidays(allHolidays);
+      } catch (err) {
+        console.error("Erro ao buscar feriados:", err);
+      }
+    };
+    fetchHolidays();
+  }, [getYear(currentDate)]);
 
   const fetchAgendamentos = async (date: Date) => {
     setLoading(true);
@@ -585,7 +617,37 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
               })}
             </div>
 
-            <div className="hidden md:block mt-auto bg-orange-50/50 rounded-2xl p-6 border border-orange-100 border-dashed">
+            {(() => {
+               const currentMonthHolidays = holidays.filter(h => {
+                 const month = h.date.split('-')[1];
+                 return parseInt(month, 10) === getMonth(currentDate) + 1;
+               });
+
+               if (currentMonthHolidays.length === 0) return null;
+
+               return (
+                 <div className="hidden md:block mt-auto mb-3 bg-rose-50/60 rounded-2xl p-4 border border-rose-100 shadow-sm">
+                   <h3 className="font-bold text-rose-700 mb-2 flex items-center gap-2 text-[11px] uppercase tracking-wider">
+                     <CalIcon className="w-3.5 h-3.5" /> Feriados e Datas Comemorativas
+                   </h3>
+                   <div className="space-y-1.5">
+                     {currentMonthHolidays.map((fh, idx) => (
+                       <div key={idx} className="flex items-center justify-between text-xs">
+                         <div className="flex items-center gap-2">
+                           <span className="font-black text-rose-600 bg-white px-1.5 py-0.5 rounded shadow-sm border border-rose-100/50">{fh.date.split('-')[2]}/{fh.date.split('-')[1]}</span>
+                           <span className="text-slate-600 font-medium truncate max-w-[130px]" title={fh.name}>{fh.name}</span>
+                         </div>
+                         <span className="px-1.5 py-0.5 rounded-md bg-white border border-slate-200 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                           {fh.type}
+                         </span>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               );
+            })()}
+
+            <div className="hidden md:block bg-orange-50/50 rounded-2xl p-6 border border-orange-100 border-dashed">
               <h3 className="font-bold text-slate-800 mb-2">Dica de Produtividade</h3>
               <p className="text-sm text-slate-600">
                 Pressione a bolinha <GripVertical className="inline w-4 h-4 text-slate-400" /> ao lado de qualquer compromisso ou bloqueio e arraste para os horários vizinhos para multiplicar sua ação imediatamente!
