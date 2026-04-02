@@ -12,6 +12,22 @@ const mPlusRounded = M_PLUS_Rounded_1c({
 export const metadata = {
   title: 'Priscila Vasconcelos - Nail Designer',
   description: 'Sistema de agendamento e gestão para Nail Designers',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Privasco',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+}
+
+export const viewport = {
+  themeColor: '#4f46e5',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 }
 
 export default function RootLayout({
