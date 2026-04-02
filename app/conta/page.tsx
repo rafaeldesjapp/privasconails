@@ -79,33 +79,17 @@ export default function ContaPage() {
     try {
         setIsPointLoading(true);
         
-        // 1. Gerar Link de Vendedor Robusto (Link Universal)
+        // 1. Gerar Link de Vendedor InfinitePay (InfiniteTap)
         // Valor formatado p/ o deep link (ex: 10.50)
         const amountStr = total.toFixed(2);
-        const sellerDeepLink = `https://www.mercadopago.com.br/vender?amount=${amountStr}&description=PrivascoNails_${selectedClient?.name || 'Venda'}`;
-
-        // 2. Criar preferência p/ o fluxo inteligente (Backup QR e Rastreio)
-        const req = await fetch('/api/pagamentos/preferences', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                total: total,
-                items: billingItems,
-                appointmentIds: billingItems.map(b => b.id),
-                userId: selectedClient?.id || user?.id,
-                customerEmail: selectedClient?.name ? 'cliente@privasconails.com' : user?.email
-            })
-        });
-        const res = await req.json();
-        if (!req.ok) throw new Error(res.error || "Erro ao gerar cobrança");
+        const sellerDeepLink = `infinitepay://vender?amount=${amountStr}&description=Venda_Nails_${selectedClient?.name || 'Comanda'}`;
 
         setSmartPayData({ 
-            init_point: res.init_point, 
-            id: res.id,
+            init_point: '', // Não usado na InfinitePay direta
+            id: 'infinitepay', 
             seller_link: sellerDeepLink
         });
         setShowSmartModal(true);
-        startPolling();
     } catch (error: any) {
         alert("Erro no Recebimento: " + error.message);
     } finally {
@@ -114,13 +98,13 @@ export default function ContaPage() {
   };
 
   const handleManualConfirm = async () => {
-    if (!confirm("Confirmar que você já recebeu o pagamento no seu aplicativo do Mercado Pago?")) return;
+    if (!confirm("Confirmar que você já recebeu o pagamento no seu aplicativo da InfinitePay?")) return;
     
     try {
         const billingIds = billingItems.map(b => b.id);
         const { error } = await supabase
             .from('agendamentos')
-            .update({ status: 'concluido', payment_method: 'cartao_presencial' })
+            .update({ status: 'concluido', payment_method: 'card_infinitepay' })
             .in('id', billingIds);
             
         if (error) throw error;
@@ -980,68 +964,47 @@ export default function ContaPage() {
       <AnimatePresence>
         {showSmartModal && smartPayData && (
           <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-300">
-              <div className="bg-indigo-600 p-6 text-white text-center relative">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-300 border-t-8 border-indigo-600">
+              <div className="p-6 text-center relative">
                 <button 
                   onClick={() => setShowSmartModal(false)}
-                  className="absolute right-4 top-4 hover:bg-white/20 p-1 rounded-full transition-colors"
+                  className="absolute right-4 top-0 hover:bg-slate-100 p-2 rounded-full transition-colors text-slate-400"
                 >
                   <X className="w-5 h-5" />
                 </button>
-                <Smartphone className="w-12 h-12 mx-auto mb-2 opacity-80" />
-                <h3 className="text-xl font-black">Modo Maquininha (Point Tap)</h3>
-                <p className="text-indigo-100 text-sm opacity-80">Use seu celular para receber do cliente</p>
+                
+                <div className="w-20 h-20 mx-auto mb-4 bg-indigo-50 rounded-2xl flex items-center justify-center p-4 border border-indigo-100">
+                  <svg viewBox="0 0 24 24" className="text-indigo-600 w-full h-full fill-current">
+                    <path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 18H7V4h10v16zm-5-1c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zM8 6h8v2H8V6z" />
+                  </svg>
+                </div>
+                
+                <h3 className="text-2xl font-black text-slate-800">InfinitePay</h3>
+                <p className="text-slate-500 text-sm">Recebimento por Aproximação</p>
               </div>
 
-              <div className="p-8 text-center">
-                
-                <div className="mb-6">
-                  <span className="text-slate-400 text-sm font-bold uppercase block mb-1">Total a Cobrar</span>
-                  <span className="text-3xl font-black text-slate-800">
+              <div className="px-8 pb-8 text-center">
+                <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <span className="text-slate-400 text-[10px] font-bold uppercase block mb-1 tracking-widest">Valor da Comanda</span>
+                  <span className="text-4xl font-black text-indigo-600">
                     {total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </span>
                 </div>
 
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-2">
-                    <a 
-                      href={`mercadopago://vender?amount=${total.toFixed(2)}&description=PrivascoNails`}
-                      className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all text-sm"
-                    >
-                      <Smartphone className="w-4 h-4" />
-                      Link 1 (Padrão Vendedor)
-                    </a>
-                    
-                    <a 
-                      href={`mercadopago://mp/payment?amount=${total.toFixed(2)}&description=PrivascoNails`}
-                      className="w-full py-4 bg-indigo-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-600 transition-all text-sm"
-                    >
-                      <Smartphone className="w-4 h-4" />
-                      Link 2 (Padrão MP)
-                    </a>
+                  <a 
+                    href={smartPayData.seller_link}
+                    className="w-full py-5 bg-indigo-600 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-xl active:scale-95 text-lg"
+                  >
+                    <Smartphone className="w-6 h-6" />
+                    COBRAR AGORA
+                  </a>
 
-                    <a 
-                      href={`mercadopago://checkout/v1/payment?amount=${total.toFixed(2)}`}
-                      className="w-full py-4 bg-indigo-400 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-500 transition-all text-sm"
-                    >
-                      <Smartphone className="w-4 h-4" />
-                      Link 3 (Padrão Checkout)
-                    </a>
-
-                    <a 
-                      href={`mercadopago://point/payment?amount=${total.toFixed(2)}`}
-                      className="w-full py-4 bg-slate-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-slate-800 transition-all text-sm"
-                    >
-                      <Smartphone className="w-4 h-4" />
-                      Link 4 (Padrão Point)
-                    </a>
-                  </div>
-
-                  <p className="text-[10px] text-slate-400 bg-slate-50 p-2 rounded-lg italic">
-                    Teste os links acima no seu celular. Estamos procurando qual deles abre o app e já preenche o valor de {total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.
+                  <p className="text-[11px] text-slate-400 leading-relaxed px-4">
+                    Toque no botão acima para abrir o app <b>InfinitePay</b> no seu celular com o valor já preenchido.
                   </p>
                   
-                  <div className="flex items-center gap-4 py-2">
+                  <div className="flex items-center gap-4 py-4">
                     <div className="h-px bg-slate-200 flex-1" />
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Após Batida do Cartão</span>
                     <div className="h-px bg-slate-200 flex-1" />
@@ -1052,26 +1015,16 @@ export default function ContaPage() {
                     className="w-full py-4 bg-emerald-500 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-emerald-600 transition-all shadow-md active:scale-95"
                   >
                     <CheckCircle2 className="w-5 h-5" />
-                    JÁ RECEBI O PAGAMENTO
+                    CONFIRMAR RECEBIMENTO
                   </button>
                 </div>
 
-                <div className="mt-8 pt-6 border-t border-slate-100">
-                  <p className="text-[11px] text-slate-400 font-medium mb-3">
-                    Se o cliente preferir escanear o QR e pagar no celular dele:
-                  </p>
-                  <div className="inline-block p-3 bg-indigo-50 rounded-xl border border-indigo-100">
-                    <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(smartPayData.init_point)}&size=120x120&color=4f46e5`}
-                      alt="Pagamento QR"
-                      className="w-24 h-24 mx-auto"
-                    />
+                <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between opacity-60 grayscale">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">Integrado via Deep Link</span>
                   </div>
-                </div>
-
-                <div className="mt-6 flex items-center justify-center gap-2 text-indigo-600">
-                  <div className="w-2 h-2 bg-indigo-600 rounded-full animate-ping" />
-                  <span className="text-xs font-bold uppercase tracking-widest">Aguardando Aprovação...</span>
+                  <span className="text-[10px] font-bold text-slate-400">P2 SMART COMPATÍVEL</span>
                 </div>
               </div>
             </div>
