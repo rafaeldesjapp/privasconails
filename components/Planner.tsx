@@ -361,8 +361,8 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       
       const isExplicitlyOpened = adminOverride?.status === 'aberto';
       
-      // Se estiver bloqueado por padrão e NÃO foi aberto explicitamente, entra como pendente
-      const isPendente = (isWeekend || isHoliday || isPastHorizon) && !isExplicitlyOpened;
+      // Se estiver bloqueado por padrão e NÃO foi aberto explicitamente, entra como pendente (apenas para clientes)
+      const isPendente = !isAdminView && (isWeekend || isHoliday || isPastHorizon) && !isExplicitlyOpened;
 
       const novaReserva = {
         user_id: targetUserId,
