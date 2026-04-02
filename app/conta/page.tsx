@@ -79,10 +79,10 @@ export default function ContaPage() {
     try {
         setIsPointLoading(true);
         
-        // 1. Gerar Link de Vendedor (Deep Link p/ abrir app Point)
-        // Valor formatado p/ o deep link (10.50)
+        // 1. Gerar Link de Vendedor Robusto (Link Universal)
+        // Valor formatado p/ o deep link (ex: 10.50)
         const amountStr = total.toFixed(2);
-        const sellerDeepLink = `mercadopago://mp/payment?amount=${amountStr}&description=PrivascoNails_${selectedClient?.name || 'Venda'}`;
+        const sellerDeepLink = `https://www.mercadopago.com.br/vender?amount=${amountStr}&description=PrivascoNails_${selectedClient?.name || 'Venda'}`;
 
         // 2. Criar preferência p/ o fluxo inteligente (Backup QR e Rastreio)
         const req = await fetch('/api/pagamentos/preferences', {
@@ -1010,6 +1010,15 @@ export default function ContaPage() {
                     <Smartphone className="w-6 h-6" />
                     ABRIR APP MERCADO PAGO
                   </a>
+                  
+                  <div className="flex justify-center">
+                    <a 
+                      href={`mercadopago://vender?amount=${total.toFixed(2)}`}
+                      className="text-[10px] text-indigo-400 hover:text-indigo-600 underline"
+                    >
+                      Não abriu? Tente o link alternativo
+                    </a>
+                  </div>
                   
                   <div className="flex items-center gap-4 py-2">
                     <div className="h-px bg-slate-200 flex-1" />
