@@ -70,6 +70,47 @@ export default function ContaPage() {
   const [pixData, setPixData] = useState<{qr_code: string, qr_code_base64: string, payment_id?: string} | null>(null);
   const [creatingPreference, setCreatingPreference] = useState(false);
   const [walletPreferenceId, setWalletPreferenceId] = useState<string | null>(null);
+  const [isPointLoading, setIsPointLoading] = useState(false);
+
+  const handlePointPayment = async () => {
+    let deviceId = localStorage.getItem('mp_device_id');
+    if (!deviceId) {
+        deviceId = window.prompt("Por favor, insira o ID do seu Dispositivo (Device ID) do Mercado Pago para receber por aproximação:");
+        if (!deviceId) return;
+        localStorage.setItem('mp_device_id', deviceId);
+    }
+
+    try {
+        setIsPointLoading(true);
+        const req = await fetch('/api/pagamentos/point-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                amount: total,
+                device_id: deviceId,
+                description: `Serviço Privasco Nails - ${selectedClient?.name}`,
+                appointmentIds: billingItems.map(b => b.id),
+                userId: selectedClient?.id,
+                clientName: selectedClient?.name
+            })
+        });
+        const res = await req.json();
+        if (!req.ok) {
+            if (res.error?.includes('device_id') || res.error?.includes('not found')) {
+                localStorage.removeItem('mp_device_id');
+                alert("Device ID inválido ou não encontrado. Por favor, tente novamente.");
+            } else {
+                alert("Erro Point API: " + res.error);
+            }
+        } else {
+            alert("Sucesso! Cobrança enviada ao seu celular. Aproxime o cartão do cliente para finalizar.");
+        }
+    } catch (e: any) {
+        alert("Falha de rede ao tentar Point API.");
+    } finally {
+        setIsPointLoading(false);
+    }
+  };
 
   const loadWalletPreference = async () => {
     try {
@@ -644,95 +685,121 @@ export default function ContaPage() {
                                      creditCard: "all",
                                      debitCard: "all"
                                    },
+                                   visual: {
+                                     texts: {
+                                       // @ts-ignore
+                                       formSubmit: isStaff ? 'receber' : 'pagar'
+                                     }
+                                   }
                                  }}
                                  onSubmit={async (param: any) => {
-                               return new Promise<void>((resolve, reject) => {
-                                const payload = {
-                                  ...param.formData,
-                                  appointmentIds: billingItems.map((b: any) => b.id),
-                                  userId: selectedClient?.id || user?.id,
-                                  clientName: selectedClient?.name || user?.user_metadata?.full_name || 'Desconhecido'
-                                };
-                                
-                                fetch("/api/pagamentos/process-payment", {
-                                  method: "POST",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                  },
-                                  body: JSON.stringify(payload),
-                                })
-                                  .then((res) => res.json())
-                                  .then((response) => {
-                                    if (response.error) {
-                                       alert("Falha no pagamento: " + response.error);
-                                       reject();
-                                    } else if (response.status === 'approved') {
-                                       alert("Pagamento Aprovado com Sucesso!");
-                                       resolve();
-                                       if (role === 'admin' || role === 'desenvolvedor') {
-                                          setSelectedClient(null);
-                                          setViewState('select_client');
-                                       } else {
-                                          fetchBill(user!.id);
-                                       }
-                                    } else if (response.status === 'pending' && response.qr_code) {
-                                       setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64, payment_id: response.id });
-                                       resolve();
-                                    } else {
-                                       alert("Aviso: Status do pagamento é " + response.status_detail || response.status);
-                                       reject();
-                                    }
-                                  })
-                                  .catch((error) => {
-                                    alert("Falha de rede ao tentar processar cartão.");
-                                    reject();
-                                  });
-                              });
-                            }}
-                            onError={async (error) => {
-                              console.error("Erro interno no Brick do MP:", error);
-                            }}
-                            onReady={async () => {
-                              console.log("Payment Brick Carregado com Sucesso");
-                            }}
-                          />
+                                return new Promise<void>((resolve, reject) => {
+                                 const payload = {
+                                   ...param.formData,
+                                   appointmentIds: billingItems.map((b: any) => b.id),
+                                   userId: selectedClient?.id || user?.id,
+                                   clientName: selectedClient?.name || user?.user_metadata?.full_name || 'Desconhecido'
+                                 };
+                                 
+                                 fetch("/api/pagamentos/process-payment", {
+                                   method: "POST",
+                                   headers: {
+                                     "Content-Type": "application/json",
+                                   },
+                                   body: JSON.stringify(payload),
+                                 })
+                                   .then((res) => res.json())
+                                   .then((response) => {
+                                     if (response.error) {
+                                        alert("Falha no pagamento: " + response.error);
+                                        reject();
+                                     } else if (response.status === 'approved') {
+                                        alert("Pagamento Aprovado com Sucesso!");
+                                        resolve();
+                                        if (role === 'admin' || role === 'desenvolvedor') {
+                                           setSelectedClient(null);
+                                           setViewState('select_client');
+                                        } else {
+                                           fetchBill(user!.id);
+                                        }
+                                     } else if (response.status === 'pending' && response.qr_code) {
+                                        setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64, payment_id: response.id });
+                                        resolve();
+                                     } else {
+                                        alert("Aviso: Status do pagamento é " + response.status_detail || response.status);
+                                        reject();
+                                     }
+                                   })
+                                   .catch((error) => {
+                                     alert("Falha de rede ao tentar processar cartão.");
+                                     reject();
+                                   });
+                               });
+                             }}
+                             onError={async (error) => {
+                               console.error("Erro interno no Brick do MP:", error);
+                             }}
+                             onReady={async () => {
+                               console.log("Payment Brick Carregado com Sucesso");
+                             }}
+                           />
                         </div>
 
-                        <div className="text-center text-xs font-bold text-slate-400 mb-2 mt-6 uppercase tracking-widest opacity-60">— Carteiras Digitais (Google Pay) —</div>
-                        <div className="mb-6 w-full">
-                          {!walletPreferenceId ? (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.preventDefault(); loadWalletPreference(); }}
-                              className="w-full p-4 border border-[#009EE3]/40 bg-[#009EE3]/10 text-[#009EE3] font-black rounded-xl flex items-center justify-center gap-2 hover:bg-[#009EE3]/20 transition-colors uppercase tracking-tight text-sm shadow-sm"
-                            >
-                              <Smartphone className="w-5 h-5" />
-                              {isStaff ? 'Receber' : 'Pagar'} com Google Pay / MP
-                            </button>
-                          ) : (
-                            <div className="bg-white rounded-xl shadow-sm border border-[#009EE3]/30 overflow-hidden relative z-10 w-full animate-in fade-in zoom-in duration-300">
-                               <Wallet initialization={{ preferenceId: walletPreferenceId }} />
+                        {!isStaff && (
+                          <div className="w-full">
+                            <div className="text-center text-xs font-bold text-slate-400 mb-2 mt-6 uppercase tracking-widest opacity-60">— Carteiras Digitais (Google Pay) —</div>
+                            <div className="mb-6 w-full">
+                              {!walletPreferenceId ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.preventDefault(); loadWalletPreference(); }}
+                                  className="w-full p-4 border border-[#009EE3]/40 bg-[#009EE3]/10 text-[#009EE3] font-black rounded-xl flex items-center justify-center gap-2 hover:bg-[#009EE3]/20 transition-colors uppercase tracking-tight text-sm shadow-sm"
+                                >
+                                  <Smartphone className="w-5 h-5" />
+                                  Pagar com Google Pay / MP
+                                </button>
+                              ) : (
+                                <div className="bg-white rounded-xl shadow-sm border border-[#009EE3]/30 overflow-hidden relative z-10 w-full animate-in fade-in zoom-in duration-300">
+                                   <Wallet initialization={{ preferenceId: walletPreferenceId }} />
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
                         <div className="text-center text-xs font-bold text-slate-400 mb-2 mt-6 uppercase tracking-widest opacity-60">— {isStaff ? 'Recebimento Físico (Loja)' : 'Pagamento Físico (Loja)'} —</div>
 
                         <button 
                           type="button"
+                          disabled={isPointLoading}
                           onClick={(e) => {
                             e.preventDefault();
                             if (role === 'admin' || role === 'desenvolvedor') {
-                              handleManualPayment('aproximacao_celular');
+                              handlePointPayment();
                             } else {
                               handlePendingRequest('pendente_aproximacao', 'Pendente de pagamento por Aproximação!');
                             }
                           }}
-                          className="w-full p-4 border border-indigo-200 bg-indigo-50 text-indigo-700 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-100 transition-colors"
+                          className={cn(
+                            "w-full p-4 border border-indigo-200 bg-indigo-50 text-indigo-700 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-100 transition-colors",
+                            isPointLoading && "opacity-50 cursor-wait"
+                          )}
                         >
                            <Smartphone className="w-5 h-5" />
-                           Aproximação Celular / Maquininha
+                           {isStaff ? (isPointLoading ? 'Gerando cobrança...' : 'Receber por Aproximação') : 'Aproximação Celular / Maquininha'}
                         </button>
+                        
+                        {isStaff && (
+                          <div className="text-center">
+                            <a 
+                              href="/api/pagamentos/point-devices" 
+                              target="_blank" 
+                              className="text-[10px] text-slate-400 hover:text-[#009EE3] transition-colors underline"
+                            >
+                              Não sabe o seu Device ID? Clique aqui para listar seus aparelhos.
+                            </a>
+                          </div>
+                        )}
 
                         <button 
                           type="button"
