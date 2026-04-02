@@ -2,9 +2,9 @@ import { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Privasco Nails Admin',
-    short_name: 'Privasco',
-    description: 'Sistema de Gestão Privasco Nails',
+    name: 'Priscila Vasconcellos Admin',
+    short_name: 'Priscila',
+    description: 'Sistema de Gestão Priscila Vasconcellos',
     start_url: '/conta',
     display: 'standalone',
     background_color: '#ffffff',

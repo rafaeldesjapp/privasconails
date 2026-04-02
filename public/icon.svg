@@ -1,5 +1,14 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="512" rx="120" fill="#4f46e5"/>
-  <path d="M160 140V372H210V280H300C335 280 360 255 360 220V200C360 165 335 140 300 140H160ZM210 185H295C305 185 310 190 310 200V220C310 230 305 235 295 235H210V185Z" fill="white"/>
-  <circle cx="400" cy="400" r="40" fill="white" fill-opacity="0.2"/>
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4f46e5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6d28d9;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="url(#grad1)"/>
+  <text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="Dancing Script, cursive" font-size="220" fill="white" font-weight="bold">PV</text>
+  <path d="M100 412 L412 412 L412 422 L100 422 Z" fill="white" fill-opacity="0.3"/>
+  <circle cx="412" cy="100" r="15" fill="white" fill-opacity="0.8">
+    <animate attributeName="opacity" values="0.3;1;0.3" dur="2s" repeatCount="indefinite" />
+  </circle>
 </svg>

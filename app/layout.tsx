@@ -16,7 +16,7 @@ export const metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Privasco',
+    title: 'Priscila',
   },
   formatDetection: {
     telephone: false,
