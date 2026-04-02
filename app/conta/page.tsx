@@ -72,13 +72,19 @@ export default function ContaPage() {
   const [walletPreferenceId, setWalletPreferenceId] = useState<string | null>(null);
   const [isPointLoading, setIsPointLoading] = useState(false);
   const [showSmartModal, setShowSmartModal] = useState(false);
-  const [smartPayData, setSmartPayData] = useState<{init_point: string, id: string} | null>(null);
+  const [smartPayData, setSmartPayData] = useState<{init_point: string, id: string, seller_link: string} | null>(null);
   const [isPolling, setIsPolling] = useState(false);
 
   const handlePointPayment = async () => {
     try {
         setIsPointLoading(true);
-        // Criar preferência p/ o fluxo inteligente
+        
+        // 1. Gerar Link de Vendedor (Deep Link p/ abrir app Point)
+        // Valor formatado p/ o deep link (10.50)
+        const amountStr = total.toFixed(2);
+        const sellerDeepLink = `mercadopago://mp/payment?amount=${amountStr}&description=PrivascoNails_${selectedClient?.name || 'Venda'}`;
+
+        // 2. Criar preferência p/ o fluxo inteligente (Backup QR e Rastreio)
         const req = await fetch('/api/pagamentos/preferences', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -93,13 +99,43 @@ export default function ContaPage() {
         const res = await req.json();
         if (!req.ok) throw new Error(res.error || "Erro ao gerar cobrança");
 
-        setSmartPayData({ init_point: res.init_point, id: res.id });
+        setSmartPayData({ 
+            init_point: res.init_point, 
+            id: res.id,
+            seller_link: sellerDeepLink
+        });
         setShowSmartModal(true);
         startPolling();
     } catch (error: any) {
         alert("Erro no Recebimento: " + error.message);
     } finally {
         setIsPointLoading(false);
+    }
+  };
+
+  const handleManualConfirm = async () => {
+    if (!confirm("Confirmar que você já recebeu o pagamento no seu aplicativo do Mercado Pago?")) return;
+    
+    try {
+        const billingIds = billingItems.map(b => b.id);
+        const { error } = await supabase
+            .from('agendamentos')
+            .update({ status: 'concluido', payment_method: 'cartao_presencial' })
+            .in('id', billingIds);
+            
+        if (error) throw error;
+        
+        setShowSmartModal(false);
+        setSmartPayData(null);
+        alert("Comanda encerrada com sucesso!");
+        if (role === 'admin' || role === 'desenvolvedor') {
+            setSelectedClient(null);
+            setViewState('select_client');
+        } else {
+            fetchBill(user!.id);
+        }
+    } catch (e: any) {
+        alert("Erro ao confirmar manualmente: " + e.message);
     }
   };
 
@@ -953,44 +989,59 @@ export default function ContaPage() {
                   <X className="w-5 h-5" />
                 </button>
                 <Smartphone className="w-12 h-12 mx-auto mb-2 opacity-80" />
-                <h3 className="text-xl font-black">Receber por Aproximação</h3>
-                <p className="text-indigo-100 text-sm opacity-80">Aproxime o cartão ou escaneie o código</p>
+                <h3 className="text-xl font-black">Modo Maquininha (Point Tap)</h3>
+                <p className="text-indigo-100 text-sm opacity-80">Use seu celular para receber do cliente</p>
               </div>
 
               <div className="p-8 text-center">
-                <div className="mb-6 inline-block p-4 bg-indigo-50 rounded-2xl border-2 border-dashed border-indigo-200">
-                  <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(smartPayData.init_point)}&size=200x200&color=4f46e5`}
-                    alt="Pagamento QR"
-                    className="w-48 h-48 mx-auto"
-                  />
-                </div>
-
+                
                 <div className="mb-6">
-                  <span className="text-slate-400 text-sm font-bold uppercase block mb-1">Total a Receber</span>
+                  <span className="text-slate-400 text-sm font-bold uppercase block mb-1">Total a Cobrar</span>
                   <span className="text-3xl font-black text-slate-800">
                     {total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </span>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <a 
-                    href={smartPayData.init_point}
-                    target="_blank"
-                    className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-lg active:scale-95"
+                    href={smartPayData.seller_link}
+                    className="w-full py-5 bg-indigo-600 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-xl active:scale-95 text-lg"
                   >
-                    <Smartphone className="w-5 h-5" />
-                    Abrir no meu Celular (NFC)
+                    <Smartphone className="w-6 h-6" />
+                    ABRIR APP MERCADO PAGO
                   </a>
                   
-                  <p className="text-[11px] text-slate-400 font-medium px-4">
-                    Se você estiver no celular administrador, clique acima para usar o Point Tap. Caso contrário, mostre o QR Code ao cliente.
-                  </p>
+                  <div className="flex items-center gap-4 py-2">
+                    <div className="h-px bg-slate-200 flex-1" />
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Após Batida do Cartão</span>
+                    <div className="h-px bg-slate-200 flex-1" />
+                  </div>
+
+                  <button 
+                    onClick={handleManualConfirm}
+                    className="w-full py-4 bg-emerald-500 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-emerald-600 transition-all shadow-md active:scale-95"
+                  >
+                    <CheckCircle2 className="w-5 h-5" />
+                    JÁ RECEBI O PAGAMENTO
+                  </button>
                 </div>
 
-                <div className="mt-8 flex items-center justify-center gap-2 text-indigo-600">
+                <div className="mt-8 pt-6 border-t border-slate-100">
+                  <p className="text-[11px] text-slate-400 font-medium mb-3">
+                    Se o cliente preferir escanear o QR e pagar no celular dele:
+                  </p>
+                  <div className="inline-block p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(smartPayData.init_point)}&size=120x120&color=4f46e5`}
+                      alt="Pagamento QR"
+                      className="w-24 h-24 mx-auto"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-6 flex items-center justify-center gap-2 text-indigo-600">
                   <div className="w-2 h-2 bg-indigo-600 rounded-full animate-ping" />
-                  <span className="text-xs font-bold uppercase tracking-widest">Aguardando Pagamento...</span>
+                  <span className="text-xs font-bold uppercase tracking-widest">Aguardando Aprovação...</span>
                 </div>
               </div>
             </div>
