@@ -71,48 +71,73 @@ export default function ContaPage() {
   const [creatingPreference, setCreatingPreference] = useState(false);
   const [walletPreferenceId, setWalletPreferenceId] = useState<string | null>(null);
   const [isPointLoading, setIsPointLoading] = useState(false);
+  const [showSmartModal, setShowSmartModal] = useState(false);
+  const [smartPayData, setSmartPayData] = useState<{init_point: string, id: string} | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
 
   const handlePointPayment = async () => {
-    let deviceId = localStorage.getItem('mp_device_id');
-    if (!deviceId) {
-        deviceId = window.prompt("Por favor, insira o ID do seu Dispositivo (Device ID) do Mercado Pago para receber por aproximação:");
-        if (!deviceId) return;
-        localStorage.setItem('mp_device_id', deviceId);
-    }
-
     try {
         setIsPointLoading(true);
-        const req = await fetch('/api/pagamentos/point-payment', {
+        // Criar preferência p/ o fluxo inteligente
+        const req = await fetch('/api/pagamentos/preferences', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                amount: total,
-                device_id: deviceId,
-                description: `Serviço Privasco Nails - ${selectedClient?.name}`,
+                total: total,
+                items: billingItems,
                 appointmentIds: billingItems.map(b => b.id),
-                userId: selectedClient?.id,
-                clientName: selectedClient?.name
+                userId: selectedClient?.id || user?.id,
+                customerEmail: selectedClient?.name ? 'cliente@privasconails.com' : user?.email
             })
         });
         const res = await req.json();
-        if (!req.ok) {
-            // Se der erro de recurso não encontrado ou ID inválido, limpamos o ID para que o usuário possa digitar outro
-            const isNotFoundError = res.error?.includes('Si quieres conocer') || res.error?.includes('not found') || res.error?.includes('device_id');
-            if (isNotFoundError) {
-                localStorage.removeItem('mp_device_id');
-                alert("ID de Dispositivo não reconhecido ou incompatível. Por favor, verifique se você inseriu o ID correto (ex: ML-12345). O ID '37713317' parece ser de um QR Code e pode não suportar Aproximação.");
-            } else {
-                alert("Erro Point API: " + res.error);
-            }
-        } else {
-            alert("Sucesso! Cobrança enviada ao seu celular. Aproxime o cartão do cliente para finalizar.");
-        }
-    } catch (e: any) {
-        alert("Falha de rede ao tentar Point API.");
+        if (!req.ok) throw new Error(res.error || "Erro ao gerar cobrança");
+
+        setSmartPayData({ init_point: res.init_point, id: res.id });
+        setShowSmartModal(true);
+        startPolling();
+    } catch (error: any) {
+        alert("Erro no Recebimento: " + error.message);
     } finally {
         setIsPointLoading(false);
     }
   };
+
+  const startPolling = () => {
+    if (isPolling) return;
+    setIsPolling(true);
+    const billingIds = billingItems.map(b => b.id);
+    
+    const interval = setInterval(async () => {
+        // Consultar status atualizado no banco
+        const { data, error } = await supabase
+            .from('agendamentos')
+            .select('status')
+            .in('id', billingIds);
+            
+        if (data && data.every((a: any) => a.status === 'concluido' || a.status === 'pago')) {
+            clearInterval(interval);
+            setIsPolling(false);
+            setShowSmartModal(false);
+            setSmartPayData(null);
+            alert("Recebimento Confirmado com Sucesso!");
+            if (role === 'admin' || role === 'desenvolvedor') {
+                setSelectedClient(null);
+                setViewState('select_client');
+            } else {
+                fetchBill(user!.id);
+            }
+        }
+        if (error) console.error("Erro polling:", error);
+    }, 5000);
+
+    // Timeout de 10 min p/ parar polling
+    setTimeout(() => {
+        clearInterval(interval);
+        setIsPolling(false);
+    }, 600000);
+  };
+
 
   const loadWalletPreference = async () => {
     try {
@@ -792,14 +817,10 @@ export default function ContaPage() {
                         </button>
                         
                         {isStaff && (
-                          <div className="text-center">
-                            <a 
-                              href="/api/pagamentos/point-devices" 
-                              target="_blank" 
-                              className="text-[10px] text-slate-400 hover:text-[#009EE3] transition-colors underline"
-                            >
-                              Não sabe o seu Device ID? Clique aqui para listar seus aparelhos.
-                            </a>
+                          <div className="text-center opacity-50">
+                            <span className="text-[10px] text-slate-400">
+                                Fluxo inteligente via QR/NFC habilitado.
+                            </span>
                           </div>
                         )}
 
@@ -915,6 +936,63 @@ export default function ContaPage() {
               >
                 {submittingDispute ? 'Enviando...' : 'Enviar Questionamento'}
               </button>
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* Modal de Pagamento Inteligente (QR / NFC) */}
+      <AnimatePresence>
+        {showSmartModal && smartPayData && (
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-300">
+              <div className="bg-indigo-600 p-6 text-white text-center relative">
+                <button 
+                  onClick={() => setShowSmartModal(false)}
+                  className="absolute right-4 top-4 hover:bg-white/20 p-1 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <Smartphone className="w-12 h-12 mx-auto mb-2 opacity-80" />
+                <h3 className="text-xl font-black">Receber por Aproximação</h3>
+                <p className="text-indigo-100 text-sm opacity-80">Aproxime o cartão ou escaneie o código</p>
+              </div>
+
+              <div className="p-8 text-center">
+                <div className="mb-6 inline-block p-4 bg-indigo-50 rounded-2xl border-2 border-dashed border-indigo-200">
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(smartPayData.init_point)}&size=200x200&color=4f46e5`}
+                    alt="Pagamento QR"
+                    className="w-48 h-48 mx-auto"
+                  />
+                </div>
+
+                <div className="mb-6">
+                  <span className="text-slate-400 text-sm font-bold uppercase block mb-1">Total a Receber</span>
+                  <span className="text-3xl font-black text-slate-800">
+                    {total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  <a 
+                    href={smartPayData.init_point}
+                    target="_blank"
+                    className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-lg active:scale-95"
+                  >
+                    <Smartphone className="w-5 h-5" />
+                    Abrir no meu Celular (NFC)
+                  </a>
+                  
+                  <p className="text-[11px] text-slate-400 font-medium px-4">
+                    Se você estiver no celular administrador, clique acima para usar o Point Tap. Caso contrário, mostre o QR Code ao cliente.
+                  </p>
+                </div>
+
+                <div className="mt-8 flex items-center justify-center gap-2 text-indigo-600">
+                  <div className="w-2 h-2 bg-indigo-600 rounded-full animate-ping" />
+                  <span className="text-xs font-bold uppercase tracking-widest">Aguardando Pagamento...</span>
+                </div>
+              </div>
             </div>
           </div>
         )}

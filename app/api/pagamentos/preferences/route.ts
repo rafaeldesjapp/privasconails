@@ -41,6 +41,11 @@ export async function POST(req: Request) {
         payer: {
           email: customerEmail || 'cliente@privasconails.com'
         },
+        external_reference: Array.isArray(body.appointmentIds) ? body.appointmentIds.join(',') : body.appointmentIds,
+        metadata: {
+          appointment_ids: body.appointmentIds,
+          user_id: body.userId
+        },
         back_urls: {
           success: `${host}/conta?status=approved`,
           failure: `${host}/conta?status=failure`,
