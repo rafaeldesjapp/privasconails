@@ -44,6 +44,7 @@ const parseServicesObj = (str: string) => {
 
 export default function ContaPage() {
   const { user, role, loading: authLoading } = useSupabaseAuth();
+  const isStaff = role === 'admin' || role === 'desenvolvedor';
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   const [viewState, setViewState] = useState<'loading'|'select_client'|'bill'>('loading');
@@ -524,16 +525,16 @@ export default function ContaPage() {
                         className="w-full flex items-center justify-center gap-2 bg-[#009EE3] text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-600 transition-colors"
                       >
                         <CreditCard className="w-6 h-6" />
-                        Tudo Certo, Pagar Agora!
+                        Tudo Certo, {isStaff ? 'Receber' : 'Pagar'} Agora!
                       </button>
                     ) : (
                       <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm animate-fade-in space-y-3">
-                        <h3 className="text-center font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 text-sm">Como você deseja pagar?</h3>
+                        <h3 className="text-center font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 text-sm">Como você deseja {isStaff ? 'receber' : 'pagar'}?</h3>
                         
                         {/* CHECKOUT TRANSPARENTE: MERCADO PAGO PAYMENT BRICK */}
                         {pixData && (
                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col items-center gap-4 text-center my-4 relative z-10 w-full animate-in fade-in zoom-in duration-300">
-                              <h4 className="font-bold text-lg text-slate-800">Pagamento via PIX gerado!</h4>
+                              <h4 className="font-bold text-lg text-slate-800">{isStaff ? 'Recebimento' : 'Pagamento'} via PIX gerado!</h4>
                               <p className="text-sm text-slate-500">Escaneie o QR Code abaixo com o aplicativo do seu banco:</p>
                               
                               <div className="p-2 bg-white rounded-xl border-2 border-[#009EE3]/20 shadow-sm">
@@ -572,7 +573,7 @@ export default function ContaPage() {
                                     }} 
                                     className="flex-1 p-3 bg-green-50 text-green-700 font-bold rounded-xl hover:bg-green-100 transition-colors"
                                  >
-                                   ✓ Já paguei
+                                   {isStaff ? '✓ Já recebi' : '✓ Já paguei'}
                                  </button>
 
                                  <button 
@@ -628,7 +629,7 @@ export default function ContaPage() {
                               </button>
                         )}
 
-                              <div className="text-center text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest opacity-60">— Pague com Cartão —</div>
+                              <div className="text-center text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest opacity-60">— {isStaff ? 'Receba' : 'Pague'} com Cartão —</div>
 
                               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-4 relative z-10 w-full">
                                <Payment
@@ -706,7 +707,7 @@ export default function ContaPage() {
                               className="w-full p-4 border border-[#009EE3]/40 bg-[#009EE3]/10 text-[#009EE3] font-black rounded-xl flex items-center justify-center gap-2 hover:bg-[#009EE3]/20 transition-colors uppercase tracking-tight text-sm shadow-sm"
                             >
                               <Smartphone className="w-5 h-5" />
-                              Pagar com Google Pay / MP
+                              {isStaff ? 'Receber' : 'Pagar'} com Google Pay / MP
                             </button>
                           ) : (
                             <div className="bg-white rounded-xl shadow-sm border border-[#009EE3]/30 overflow-hidden relative z-10 w-full animate-in fade-in zoom-in duration-300">
@@ -715,7 +716,7 @@ export default function ContaPage() {
                           )}
                         </div>
 
-                        <div className="text-center text-xs font-bold text-slate-400 mb-2 mt-6 uppercase tracking-widest opacity-60">— Pagamento Físico (Loja) —</div>
+                        <div className="text-center text-xs font-bold text-slate-400 mb-2 mt-6 uppercase tracking-widest opacity-60">— {isStaff ? 'Recebimento Físico (Loja)' : 'Pagamento Físico (Loja)'} —</div>
 
                         <button 
                           type="button"
