@@ -121,10 +121,10 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       <div className="p-4 lg:p-6 flex items-center justify-between">
         <div className="space-y-0.5">
           <h1 className="text-xl lg:text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 font-dancing leading-none">
-            Priscila Vasconcelos
+            Priscila Nails
           </h1>
           <p className="text-xs lg:text-sm font-medium bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 font-dancing flex items-center gap-1 mt-1">
-            Nail Designer
+            Nails Designer
             <Paintbrush className="w-3 h-3 text-pink-500 inline-block" />
           </p>
         </div>

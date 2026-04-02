@@ -524,7 +524,7 @@ export default function ContaPage() {
                      }}>
                   
                   <div className="text-center mb-10 pb-6 border-b-2 border-dashed border-slate-300 relative bg-[#fcfbf7] z-10 pt-2">
-                    <h1 className="text-3xl font-black font-dancing tracking-tight text-slate-800">Priscila Vasconcelos</h1>
+                    <h1 className="text-3xl font-black font-dancing tracking-tight text-slate-800">Priscila Nails Designer</h1>
                     <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mt-2 font-bold font-mono">Comanda do Cliente</p>
                     <p className="font-bold text-slate-700 mt-2">{selectedClient.name}</p>
                   </div>
