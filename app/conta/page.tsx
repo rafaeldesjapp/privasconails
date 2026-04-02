@@ -96,9 +96,11 @@ export default function ContaPage() {
         });
         const res = await req.json();
         if (!req.ok) {
-            if (res.error?.includes('device_id') || res.error?.includes('not found')) {
+            // Se der erro de recurso não encontrado ou ID inválido, limpamos o ID para que o usuário possa digitar outro
+            const isNotFoundError = res.error?.includes('Si quieres conocer') || res.error?.includes('not found') || res.error?.includes('device_id');
+            if (isNotFoundError) {
                 localStorage.removeItem('mp_device_id');
-                alert("Device ID inválido ou não encontrado. Por favor, tente novamente.");
+                alert("ID de Dispositivo não reconhecido ou incompatível. Por favor, verifique se você inseriu o ID correto (ex: ML-12345). O ID '37713317' parece ser de um QR Code e pode não suportar Aproximação.");
             } else {
                 alert("Erro Point API: " + res.error);
             }

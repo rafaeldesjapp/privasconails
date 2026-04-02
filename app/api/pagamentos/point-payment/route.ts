@@ -1,8 +1,4 @@
 import { NextResponse } from 'next/server';
-import { MercadoPagoConfig, Payment } from 'mercadopago';
-
-// Note: The MercadoPago v2 SDK currently doesn't have a specific "Point" class in the high-level API.
-// We'll use traditional fetch to call the Point API endpoints as per documented best practices.
 
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || '';
 
@@ -14,9 +10,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Faltam parâmetros: amount, device_id ou appointmentIds' }, { status: 400 });
     }
 
-    // Create Payment Intent for the Specific Device
-    // Documentation: https://www.mercadopago.com.br/developers/pt/reference/integrations_api_point/_pos_device_id_payment-intents/post
-    const response = await fetch(`https://api.mercadopago.com/point/integrations/payment-intents/${device_id}`, {
+    // Version 3 (Common): POST to root and device_id in body
+    // Some documentation suggests this is the most compatible version for Cloud Point
+    const response = await fetch(`https://api.mercadopago.com/point/integrations/payment-intents`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
@@ -26,11 +22,11 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         amount: Number(amount),
         description: description || 'Recebimento por Aproximação',
+        device_id: device_id, // Passed in Body
         payment: {
           installments: 1,
-          type: 'credit_card', // Focus on credit for approximation
+          type: 'credit_card',
         },
-        // We can pass metadata to track the appointmentIds later via webhook
         additional_info: {
              external_reference: appointmentIds.join(','),
              print_on_terminal: true
@@ -41,15 +37,31 @@ export async function POST(req: Request) {
     const result = await response.json();
 
     if (!response.ok) {
-      console.error('Erro Point API:', result);
+      console.error('Erro Point API (V2):', result);
+      // If it fails with 404, we try the URL version as backup
+      if (response.status === 404) {
+          const fallback = await fetch(`https://api.mercadopago.com/point/integrations/devices/${device_id}/payment-intents`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
+              'Content-Type': 'application/json',
+              'X-Idempotency-Key': crypto.randomUUID()
+            },
+            body: JSON.stringify({
+              amount: Number(amount),
+              description: description || 'Recebimento por Aproximação',
+              payment: { installments: 1, type: 'credit_card' },
+              additional_info: { external_reference: appointmentIds.join(','), print_on_terminal: true }
+            })
+          });
+          const fallbackResult = await fallback.json();
+          if (fallback.ok) return NextResponse.json(fallbackResult);
+          return NextResponse.json({ error: fallbackResult.message || 'ID de dispositivo não reconhecido pelo Mercado Pago como Point/Tap.' }, { status: fallback.status });
+      }
       return NextResponse.json({ error: result.message || 'Falha ao criar intenção no Point' }, { status: response.status });
     }
 
-    // Returns the intent data. The user's phone/machine should now be active.
-    return NextResponse.json({
-        id: result.id,
-        status: result.status,
-    });
+    return NextResponse.json({ id: result.id, status: result.status });
 
   } catch (error: any) {
     console.error('Erro no Point API Route:', error);
