@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import Auth from '@/components/Auth';
-import { Settings, ShieldAlert, History, Trash2, Edit3, UserPlus, Clock } from 'lucide-react';
+import { Settings, ShieldAlert, History, Trash2, Edit3, UserPlus, Clock, Unlock, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 
@@ -65,20 +65,14 @@ export default function ConfiguracoesPage() {
     const carregarLogs = async () => {
       setLogsLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('logs')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(100);
+        const response = await fetch('/api/logs/get');
+        const result = await response.json();
 
-        if (error) {
-          console.error('Erro ao carregar logs:', error);
-          return;
-        }
+        if (!response.ok) throw new Error(result.error || 'Erro ao carregar logs.');
 
-        setLogs(data || []);
-      } catch (err) {
-        console.error('Falha:', err);
+        setLogs(result.data || []);
+      } catch (err: any) {
+        console.error('Falha ao carregar logs:', err);
       } finally {
         setLogsLoading(false);
       }
@@ -121,6 +115,22 @@ export default function ConfiguracoesPage() {
           cor_fundo: 'bg-emerald-50',
           titulo: 'Criação de Usuário',
           mensagem: `O administrador adicionou "${registro.target_info}" ao sistema.`,
+          descricaoTecnica: registro.description
+        };
+      case 'HOLIDAY_UNLOCK_ALLOWED':
+        return {
+          icone: <Unlock className="w-5 h-5 text-amber-500" />,
+          cor_fundo: 'bg-amber-50',
+          titulo: 'Abertura de Feriado',
+          mensagem: `A profissional autorizou a abertura da agenda no feriado (${registro.target_info}).`,
+          descricaoTecnica: registro.description
+        };
+      case 'HOLIDAY_UNLOCK_DENIED':
+        return {
+          icone: <Lock className="w-5 h-5 text-slate-400" />,
+          cor_fundo: 'bg-slate-50',
+          titulo: 'Bloqueio Mantido',
+          mensagem: `Feriado mantido bloqueado (${registro.target_info}) após visualização do aviso de segurança.`,
           descricaoTecnica: registro.description
         };
       case 'UPDATE_PROFILE':

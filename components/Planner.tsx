@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, CheckCircle2, Clock, Plus, Trash2, Calendar as CalIcon, Lock, Unlock, AlertOctagon, Pencil, Save, X, GripVertical, Users, Banknote } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
-import { format, addDays, subDays, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getMonth, getYear } from 'date-fns';
+import { format, addDays, subDays, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getMonth, getYear, isSaturday, isSunday, setHours, setMinutes, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Agendamento {
@@ -15,7 +15,7 @@ interface Agendamento {
   service: string;
   date: string;
   time: string;
-  status: 'agendado' | 'concluido' | 'cancelado' | 'bloqueado' | 'pendente_dinheiro';
+  status: 'agendado' | 'concluido' | 'cancelado' | 'bloqueado' | 'pendente_dinheiro' | 'aberto' | 'pendente_autorizacao';
 }
 
 interface PlannerProps {
@@ -51,7 +51,8 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editServices, setEditServices] = useState<{qty: number, name: string}[]>([{qty: 1, name: ''}]);
   
-  const [blockedDays, setBlockedDays] = useState<{id: string, date: string}[]>([]);
+  const [blockedDays, setBlockedDays] = useState<{id: string, date: string, status: string}[]>([]); 
+  const [holidayConfirm, setHolidayConfirm] = useState<{isOpen: boolean, date: Date | null}>({ isOpen: false, date: null });
 
   // Estados do Drag-to-Fill
   const [isDragging, setIsDragging] = useState(false);
@@ -79,8 +80,27 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   const [checkoutDuration, setCheckoutDuration] = useState<string>('60'); 
   const [checkoutPayment, setCheckoutPayment] = useState<string>('Pix');
 
-  const isDayBlocked = agendamentos.some(a => a.time === 'ALL' && a.status === 'bloqueado');
-  const dayBlockId = agendamentos.find(a => a.time === 'ALL' && a.status === 'bloqueado')?.id;
+  const isDayBlocked = (() => {
+    const dateStr = format(currentDate, 'yyyy-MM-dd');
+    const adminRecord = agendamentos.find(a => a.time === 'ALL' && a.date === dateStr);
+    
+    const isHoliday = holidays.some(h => h.date === dateStr);
+    const isWeekend = isSaturday(currentDate) || isSunday(currentDate);
+    
+    const now = new Date();
+    const currentWeekMonday = startOfWeek(now, { weekStartsOn: 1 });
+    const monday7AM = setHours(setMinutes(currentWeekMonday, 0), 7);
+    const weeksToAdd = now >= monday7AM ? 12 : 5;
+    const openHorizon = addDays(currentWeekMonday, weeksToAdd);
+    const isPastHorizon = currentDate > openHorizon;
+    
+    const isExplicitlyBlocked = adminRecord?.status === 'bloqueado';
+    const isExplicitlyOpened = adminRecord?.status === 'aberto';
+    
+    return isExplicitlyBlocked || ((isWeekend || isHoliday || isPastHorizon) && !isExplicitlyOpened);
+  })();
+
+  const dayBlockId = agendamentos.find(a => a.time === 'ALL' && a.status === 'bloqueado' && a.date === format(currentDate, 'yyyy-MM-dd'))?.id;
 
   // Busca número do WhatsApp e Tabela de Preços
   useEffect(() => {
@@ -184,9 +204,9 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       const start = format(startOfMonth(date), 'yyyy-MM-dd');
       const end = format(endOfMonth(date), 'yyyy-MM-dd');
       const { data, error } = await supabase.from('agendamentos')
-        .select('id, date')
+        .select('id, date, status')
         .eq('time', 'ALL')
-        .eq('status', 'bloqueado')
+        .in('status', ['bloqueado', 'aberto'])
         .gte('date', start)
         .lte('date', end);
         
@@ -326,13 +346,31 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       const targetUserId = selectedClientId || user.id;
       const targetClientName = selectedClient ? selectedClient.full_name : (user?.user_metadata?.full_name || user.email);
 
+      const dateStr = format(currentDate, 'yyyy-MM-dd');
+      const adminOverride = blockedDays.find(b => b.date === dateStr);
+      const isHoliday = holidays.some(h => h.date === dateStr);
+      
+      const now = new Date();
+      const currentWeekMonday = startOfWeek(now, { weekStartsOn: 1 });
+      const monday7AM = setHours(setMinutes(currentWeekMonday, 0), 7);
+      const weeksToAdd = now >= monday7AM ? 12 : 5;
+      const openHorizon = addDays(currentWeekMonday, weeksToAdd);
+      
+      const isWeekend = isSaturday(currentDate) || isSunday(currentDate);
+      const isPastHorizon = currentDate > openHorizon;
+      
+      const isExplicitlyOpened = adminOverride?.status === 'aberto';
+      
+      // Se estiver bloqueado por padrão e NÃO foi aberto explicitamente, entra como pendente
+      const isPendente = (isWeekend || isHoliday || isPastHorizon) && !isExplicitlyOpened;
+
       const novaReserva = {
         user_id: targetUserId,
         client_name: targetClientName,
         service: finalServiceStr,
         date: format(currentDate, 'yyyy-MM-dd'),
         time: timeStr,
-        status: 'agendado'
+        status: isPendente ? 'pendente_autorizacao' : 'agendado'
       };
 
       const { error } = await supabase.from('agendamentos').insert([novaReserva]);
@@ -380,25 +418,126 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
     }
   };
 
+  const logAuditAction = async (action: string, target_info: string, description: string) => {
+    try {
+      await fetch('/api/logs/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          target_info,
+          description,
+          admin_email: user?.email || 'Admin Desconhecido',
+          admin_id: user?.id
+        })
+      });
+    } catch (err) {
+      console.error('Erro ao gravar log via API:', err);
+    }
+  };
+
   const handleBlockFullDay = async (targetDate: Date = currentDate) => {
     try {
+      const dateStr = format(targetDate, 'yyyy-MM-dd');
+      const isHoliday = holidays.some(h => h.date === dateStr);
+      
+      // Se for feriado e quisermos ABRIR, mostrar o novo modal
+      if (isHoliday) {
+        setHolidayConfirm({ isOpen: true, date: targetDate });
+        return;
+      }
+
+      await executeHolidayUnlock(targetDate);
+    } catch (err: any) {
+      alert('Erro ao abrir o dia: ' + err.message);
+    }
+  };
+
+  const executeHolidayUnlock = async (targetDate: Date, wasConfirmedHoliday: boolean = false) => {
+    const dateStr = format(targetDate, 'yyyy-MM-dd');
+    const holidayName = holidays.find(h => h.date === dateStr)?.name || 'Dia Indefinido';
+
+    try {
+      await fetch('/api/admin/manage-day', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: dateStr,
+          status: 'aberto',
+          user_id: user?.id,
+          client_name: 'Manual Override',
+          service: 'Abertura Manual'
+        })
+      });
+
+      if (wasConfirmedHoliday) {
+        await logAuditAction('HOLIDAY_UNLOCK_ALLOWED', holidayName, `Administrador confirmou a abertura do feriado no dia ${dateStr}.`);
+      }
+    } catch (err) {
+      console.error('Erro ao abrir o dia via servidor:', err);
+      // Fallback local caso a API falhe
+      const bloq = {
+        user_id: user?.id,
+        client_name: 'Manual Override',
+        service: 'Abertura Manual',
+        date: dateStr,
+        time: 'ALL',
+        status: 'aberto'
+      };
+      await supabase.from('agendamentos').insert([bloq]);
+    }
+    
+    fetchAgendamentos(currentDate);
+    fetchBlockedDays(currentDate);
+  };
+
+  const handleManualBlockDay = async (targetDate: Date = currentDate) => {
+    const dateStr = format(targetDate, 'yyyy-MM-dd');
+    try {
+      await fetch('/api/admin/manage-day', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: dateStr,
+          status: 'bloqueado',
+          user_id: user?.id,
+          client_name: 'Dia Fechado',
+          service: 'Dia Indisponível'
+        })
+      });
+    } catch (err) {
+      console.error('Erro ao bloquear dia via servidor:', err);
       const bloq = {
         user_id: user?.id,
         client_name: 'Dia Fechado',
         service: 'Dia Indisponível',
-        date: format(targetDate, 'yyyy-MM-dd'),
+        date: dateStr,
         time: 'ALL',
         status: 'bloqueado'
       };
-      const { error } = await supabase.from('agendamentos').insert([bloq]);
-      if (error) throw error;
+      await supabase.from('agendamentos').insert([bloq]);
+    }
+    
+    fetchAgendamentos(currentDate);
+    fetchBlockedDays(currentDate);
+  };
+
+  const handleDeleteOverride = async (targetDate: Date) => {
+    try {
+      const dateStr = format(targetDate, 'yyyy-MM-dd');
+      await fetch('/api/admin/manage-day', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: dateStr })
+      });
       
       fetchAgendamentos(currentDate);
       fetchBlockedDays(currentDate);
     } catch (err: any) {
-      alert('Erro ao bloquear o dia: ' + err.message);
+      alert('Erro ao remover trava do dia: ' + err.message);
     }
   };
+
 
   const handleCancel = async (id: string, silently: boolean = false, isExternalAction = false) => {
     try {
@@ -557,10 +696,32 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
               ))}
               {daysInMonth.map((day, i) => {
                 const dateStr = format(day, 'yyyy-MM-dd');
-                const blockRecord = blockedDays.find(b => b.date === dateStr);
-                const isThisDayBlocked = !!blockRecord;
+                const adminOverride = blockedDays.find(b => b.date === dateStr);
                 const isSelected = isSameDay(day, currentDate);
                 const isHoliday = holidays.some(h => h.date === dateStr);
+                
+                // Cálculo da Janela de Abertura (Horizonte)
+                const now = new Date();
+                const currentWeekMonday = startOfWeek(now, { weekStartsOn: 1 }); // Segunda desta semana
+                const monday7AM = setHours(setMinutes(currentWeekMonday, 0), 7);
+                
+                // Se já passou de segunda 7h, o limite é o final da próxima semana. 
+                // Caso contrário, é o final desta semana.
+                const weeksToAdd = now >= monday7AM ? 12 : 5; // Dias desde a segunda atual para chegar na sexta (4) + 7 = 11? 
+                // Vamos ser precisos: addDays(segunda, 4) = sexta atual. addDays(segunda, 11) = próxima sexta.
+                const openHorizon = addDays(currentWeekMonday, weeksToAdd);
+                
+                const isWeekend = isSaturday(day) || isSunday(day);
+                const isPastHorizon = day > openHorizon;
+                
+                // Lógica final de bloqueio:
+                const isExplicitlyBlocked = adminOverride?.status === 'bloqueado';
+                const isExplicitlyOpened = adminOverride?.status === 'aberto';
+                
+                // Bloqueado se:
+                // 1. Bloqueio manual
+                // 2. É fim de semana, feriado ou está além do horizonte E NÃO foi aberto manualmente.
+                const isThisDayBlocked = isExplicitlyBlocked || ((isWeekend || isHoliday || isPastHorizon) && !isExplicitlyOpened);
 
                 return (
                   <div 
@@ -594,9 +755,14 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
 
                     {isAdminView && (
                       <div className="absolute top-[-10px] right-[-10px] z-50 opacity-0 group-hover:opacity-100 transition-opacity">
-                         {isThisDayBlocked && blockRecord ? (
+                         {isThisDayBlocked ? (
                            <button 
-                             onClick={(e) => { e.stopPropagation(); handleCancel(blockRecord.id, true, true); }} 
+                             onClick={(e) => { 
+                               e.stopPropagation(); 
+                               // Se houver registro de bloqueio manual, deleta. Se for bloqueio automático, cria abertura.
+                               if (isExplicitlyBlocked) handleDeleteOverride(day);
+                               else handleBlockFullDay(day); 
+                             }} 
                              className="bg-white rounded-full p-1 shadow-md border border-slate-200 text-red-500 hover:text-slate-700"
                              title="Desbloquear Dia"
                            >
@@ -604,7 +770,12 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                            </button>
                          ) : (
                            <button 
-                             onClick={(e) => { e.stopPropagation(); handleBlockFullDay(day); }} 
+                             onClick={(e) => { 
+                               e.stopPropagation(); 
+                               // Se for uma abertura manual, deleta. Se for uma abertura automática, cria bloqueio.
+                               if (isExplicitlyOpened) handleDeleteOverride(day);
+                               else handleManualBlockDay(day);
+                             }} 
                              className="bg-white rounded-full p-1 shadow-md border border-slate-200 text-slate-400 hover:text-red-500"
                              title="Bloquear Dia"
                            >
@@ -734,19 +905,24 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                   </div>
                 </div>
 
-                {isDayBlocked ? (
-                  <div className="py-24 flex items-center justify-center">
-                    <div className="transform rotate-[-15deg] border-4 border-red-500 text-red-500 p-8 rounded-2xl text-6xl font-black uppercase tracking-widest opacity-80 mix-blend-multiply flex items-center gap-4">
-                      Fechado <Lock className="w-16 h-16" />
+                {isDayBlocked && (
+                  <div className="mx-2 mb-6 p-4 bg-orange-50 border border-orange-100 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-500">
+                    <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Clock className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-orange-800 text-sm">Solicitação sob Consulta</h4>
+                      <p className="text-xs text-orange-700/80">Este dia é feriado ou fim de semana. Você pode solicitar o horário, mas ele só será validado após aprovação da profissional.</p>
                     </div>
                   </div>
-                ) : (
-                  <div className="space-y-[1px] pb-24">
-                    {loading ? (
-                      <div className="flex justify-center py-12">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-500"></div>
-                      </div>
-                    ) : (
+                )}
+
+                <div className="space-y-[1px] pb-24">
+                  {loading ? (
+                    <div className="flex justify-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-500"></div>
+                    </div>
+                  ) : (
                       fullDayTimeSlots.map(time => {
                         const age = agendamentos.find(a => a.time === time);
                         const isBlockedSlot = age?.status === 'bloqueado';
@@ -915,6 +1091,11 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                         <span className="font-medium text-sm truncate flex-1 block">
                                           {isAdminView || isMine ? `${age.client_name} - ${age.service}` : 'Agendado'}
                                         </span>
+                                        {age.status === 'pendente_autorizacao' && (
+                                          <span className="ml-2 px-1.5 py-0.5 rounded-full bg-amber-200 text-[9px] font-black uppercase tracking-widest text-amber-800 flex items-center gap-1 shadow-sm shrink-0">
+                                            <Clock className="w-3 h-3" /> Aguardando Autorização
+                                          </span>
+                                        )}
                                         {age.status === 'concluido' && (
                                           <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-black bg-green-200 text-green-800 uppercase tracking-widest border border-green-300 shadow-sm shrink-0">
                                             ✓ PG
@@ -929,7 +1110,12 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                               <Banknote className="w-4 h-4" />
                                             </button>
                                           )}
-                                          {isAdminView && age.status !== 'concluido' && age.status !== 'pendente_dinheiro' && (
+                                          {isAdminView && age.status === 'pendente_autorizacao' && (
+                                            <button onClick={() => handleStatusChange(age.id, 'agendado')} className="p-1 text-green-500 hover:bg-green-100 flex items-center gap-1 rounded transition-colors" title="Autorizar Agendamento">
+                                              <CheckCircle2 className="w-4 h-4" />
+                                            </button>
+                                          )}
+                                          {isAdminView && age.status !== 'concluido' && age.status !== 'pendente_dinheiro' && age.status !== 'pendente_autorizacao' && (
                                             <button onClick={() => setCheckoutData(age)} className="p-1 text-green-600 hover:bg-green-200 rounded transition-colors" title="Finalizar Atendimento">
                                               <CheckCircle2 className="w-4 h-4" />
                                             </button>
@@ -1074,8 +1260,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                       })
                     )}
                   </div>
-                )}
-              </div>
+                </div>
             </motion.div>
           </AnimatePresence>
         </div>
@@ -1111,9 +1296,69 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
         </div>
       )}
 
+      {/* Modal de Confirmação de Feriado (Auditoria) */}
+      <AnimatePresence>
+        {holidayConfirm.isOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-sm p-8 border border-white overflow-hidden relative"
+            >
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-pink-500 via-rose-400 to-orange-400" />
+              
+              <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center mx-auto mb-6 rotate-3 shadow-inner">
+                <AlertOctagon className="w-10 h-10 text-rose-500" />
+              </div>
+
+              <h3 className="text-xl font-black text-slate-800 text-center mb-4 leading-tight px-4">
+                Dia de Feriado Detectado
+              </h3>
+              
+              <p className="text-slate-500 text-sm text-center mb-8 px-2 font-medium leading-relaxed">
+                O dia solicitado é um feriado (<strong className="text-rose-500">{holidays.find(h => h.date === format(holidayConfirm.date!, 'yyyy-MM-dd'))?.name}</strong>). 
+                Você tem certeza que deseja retirar o cadeado desse dia?
+              </p>
+              
+              <div className="space-y-3">
+                <button 
+                  onClick={async () => {
+                    if (holidayConfirm.date) {
+                      await executeHolidayUnlock(holidayConfirm.date, true);
+                      setHolidayConfirm({ isOpen: false, date: null });
+                    }
+                  }}
+                  className="w-full bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white font-black py-4 rounded-2xl shadow-xl shadow-rose-200 transition-all active:scale-95 flex justify-center items-center gap-2 group"
+                >
+                  <Unlock className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                  Sim, quero abrir
+                </button>
+                
+                <button 
+                  onClick={async () => {
+                    const dateStr = format(holidayConfirm.date!, 'yyyy-MM-dd');
+                    const hName = holidays.find(h => h.date === dateStr)?.name || 'Feriado';
+                    await logAuditAction('HOLIDAY_UNLOCK_DENIED', hName, `Administrador visualizou o aviso e decidiu MANTER o bloqueio do feriado.`);
+                    setHolidayConfirm({ isOpen: false, date: null });
+                  }}
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-4 rounded-2xl transition-all active:scale-95"
+                >
+                  Não
+                </button>
+              </div>
+
+              <div className="mt-6 flex justify-center">
+                <span className="text-[10px] uppercase tracking-widest font-black text-slate-300">Auditoria Ativada</span>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {checkoutData && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 relative border border-slate-100">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 relative border border-slate-100 font-sans">
             <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
               <CheckCircle2 className="w-6 h-6 text-green-500" />
               Finalizar Atendimento

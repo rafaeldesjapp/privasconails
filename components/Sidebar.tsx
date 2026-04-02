@@ -89,11 +89,14 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     { name: 'Histórico', icon: History, href: '/historico' },
   ];
 
-  const filteredNavItems = (role === 'admin' || role === 'desenvolvedor') 
-    ? navItems 
-    : navItems.filter(item => 
-        ['Meus Trabalhos', 'Tabela de Preços', 'Pagar Minha Conta', 'Agendamentos', 'Pagamentos', 'Papo de Salão', 'Histórico'].includes(item.name as string)
-      );
+  const filteredNavItems = navItems.filter(item => {
+    if (role === 'admin' || role === 'desenvolvedor') {
+      // Para admin/dev, removem-se 'Agendamentos' pois 'Agenda' já cumpre o papel
+      return item.name !== 'Agendamentos';
+    }
+    // Para clientes, mantém-se apenas os itens permitidos
+    return ['Meus Trabalhos', 'Tabela de Preços', 'Pagar Minha Conta', 'Agendamentos', 'Pagamentos', 'Papo de Salão', 'Histórico'].includes(item.name as string);
+  });
 
   const handleLogout = async () => {
     try {
