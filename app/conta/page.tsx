@@ -1003,22 +1003,43 @@ export default function ContaPage() {
                 </div>
 
                 <div className="space-y-4">
-                  <a 
-                    href={smartPayData.seller_link}
-                    className="w-full py-5 bg-indigo-600 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-xl active:scale-95 text-lg"
-                  >
-                    <Smartphone className="w-6 h-6" />
-                    ABRIR APP MERCADO PAGO
-                  </a>
-                  
-                  <div className="flex justify-center">
+                  <div className="grid grid-cols-1 gap-2">
                     <a 
-                      href={`mercadopago://vender?amount=${total.toFixed(2)}`}
-                      className="text-[10px] text-indigo-400 hover:text-indigo-600 underline"
+                      href={`mercadopago://vender?amount=${total.toFixed(2)}&description=PrivascoNails`}
+                      className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all text-sm"
                     >
-                      Não abriu? Tente o link alternativo
+                      <Smartphone className="w-4 h-4" />
+                      Link 1 (Padrão Vendedor)
+                    </a>
+                    
+                    <a 
+                      href={`mercadopago://mp/payment?amount=${total.toFixed(2)}&description=PrivascoNails`}
+                      className="w-full py-4 bg-indigo-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-600 transition-all text-sm"
+                    >
+                      <Smartphone className="w-4 h-4" />
+                      Link 2 (Padrão MP)
+                    </a>
+
+                    <a 
+                      href={`mercadopago://checkout/v1/payment?amount=${total.toFixed(2)}`}
+                      className="w-full py-4 bg-indigo-400 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-500 transition-all text-sm"
+                    >
+                      <Smartphone className="w-4 h-4" />
+                      Link 3 (Padrão Checkout)
+                    </a>
+
+                    <a 
+                      href={`mercadopago://point/payment?amount=${total.toFixed(2)}`}
+                      className="w-full py-4 bg-slate-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-slate-800 transition-all text-sm"
+                    >
+                      <Smartphone className="w-4 h-4" />
+                      Link 4 (Padrão Point)
                     </a>
                   </div>
+
+                  <p className="text-[10px] text-slate-400 bg-slate-50 p-2 rounded-lg italic">
+                    Teste os links acima no seu celular. Estamos procurando qual deles abre o app e já preenche o valor de {total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.
+                  </p>
                   
                   <div className="flex items-center gap-4 py-2">
                     <div className="h-px bg-slate-200 flex-1" />
