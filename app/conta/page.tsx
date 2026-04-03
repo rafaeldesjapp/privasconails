@@ -58,9 +58,7 @@ function ContaContent() {
   const isStaff = role === 'admin' || role === 'desenvolvedor';
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
-  // ... rest of the component state from before ...
   const [viewState, setViewState] = useState<'loading'|'select_client'|'bill'>('loading');
-  // ...
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<{id: string, name: string} | null>(null);
   const [search, setSearch] = useState('');
@@ -85,34 +83,35 @@ function ContaContent() {
   const [walletPreferenceId, setWalletPreferenceId] = useState<string | null>(null);
   const [isPointLoading, setIsPointLoading] = useState(false);
   const [showSmartModal, setShowSmartModal] = useState(false);
-  const [smartPayData, setSmartPayData] = useState<{init_point: string, id: string, seller_link: string} | null>(null);
+  const [smartPayData, setSmartPayData] = useState<{init_point: string, id: string, seller_link: string, alternative_link?: string} | null>(null);
   const [isPolling, setIsPolling] = useState(false);
 
   const handlePointPayment = async () => {
     try {
         setIsPointLoading(true);
         
-        // 1. Gerar Link de Vendedor InfinitePay (InfiniteTap)
+        // 1. Gerar Links de Vendedor (Padrão e Alternativo para iOS)
         const amountStr = total.toFixed(2);
         const billingIdsArr = billingItems.map(b => b.id);
         const billingIds = billingIdsArr.join(',');
-        
-        // Descrição ultra-simples para evitar problemas de caracteres (máx 15 chars se possível)
         const cleanDesc = `Nails_${total.toFixed(0)}`;
         
-        // Configura URL de Retorno Automático (simplificada)
+        // URL de Callback (simplificada para evitar erro de endereço no Safari)
         const callbackUrl = encodeURIComponent(`https://privasconails.vercel.app/api/pagamentos/infinitepay-callback?ids=${billingIds}`);
         
-        const sellerDeepLink = `infinitepay://vender?amount=${amountStr}&description=${cleanDesc}&callback_url=${callbackUrl}`;
+        // Esquemas de URL
+        const infinitepayLink = `infinitepay://vender?amount=${amountStr}&description=${cleanDesc}&callback_url=${callbackUrl}`;
+        const cloudwalkLink = `cloudwalk://vender?amount=${amountStr}&description=${cleanDesc}&callback_url=${callbackUrl}`;
 
         setSmartPayData({ 
             init_point: '', 
             id: 'infinitepay', 
-            seller_link: sellerDeepLink
+            seller_link: infinitepayLink,
+            alternative_link: cloudwalkLink
         });
         
         setShowSmartModal(true);
-        startPolling(); // Inicia polling redundante caso o callback falhe
+        startPolling(); 
     } catch (error: any) {
         alert("Erro no Recebimento: " + (error.message || "Erro desconhecido"));
     } finally {
@@ -1029,25 +1028,33 @@ function ContaContent() {
                   </span>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <button 
                     onClick={() => {
-                      if (smartPayData) {
-                        window.location.assign(smartPayData.seller_link);
-                      }
+                      if (smartPayData) window.location.assign(smartPayData.seller_link);
                     }}
                     className="w-full py-5 bg-indigo-600 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-xl active:scale-95 text-lg"
                   >
                     <Smartphone className="w-6 h-6" />
-                    COBRAR AGORA
+                    COBRAR AGORA (Link 1)
+                  </button>
+
+                  <button 
+                    onClick={() => {
+                      if (smartPayData?.alternative_link) window.location.assign(smartPayData.alternative_link);
+                    }}
+                    className="w-full py-4 bg-slate-100 text-slate-700 font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-200 transition-all active:scale-95 text-base"
+                  >
+                    <Smartphone className="w-5 h-5" />
+                    LINK ALTERNATIVO (Link 2)
                   </button>
 
                   <p className="text-[11px] text-slate-400 leading-relaxed px-4">
-                    Toque no botão acima para abrir o app <b>InfinitePay</b> no seu celular com o valor já preenchido.
+                    Se o Link 1 der "Endereço Inválido", tente o <b>Link 2</b>. Se ambos falharem, o app não reconhece o comando.
                   </p>
                   
-                  <p className="text-[10px] text-red-400 font-medium px-4">
-                    Se o erro de "Endereço Inválido" persistir, verifique se o app InfinitePay está instalado e logado.
+                  <p className="text-[10px] text-indigo-400 font-medium px-4">
+                    Certifique-se de que o app InfinitePay está instalado e logado.
                   </p>
                   
                   <div className="flex items-center gap-4 py-4">
