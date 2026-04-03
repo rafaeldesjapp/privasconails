@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'Priscila Nails Designer',
     short_name: 'Priscila Nails',
     description: 'Sistema de Gestão Priscila Vasconcellos',
-    start_url: '/conta',
+    start_url: '/portfolio',
     display: 'standalone',
     background_color: '#ffffff',
     theme_color: '#db2777',
