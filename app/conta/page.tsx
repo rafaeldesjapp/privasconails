@@ -1041,6 +1041,7 @@ function ContaContent() {
                   </span>
                 </div>
 
+                <>
                   {!showManualSteps ? (
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-3">
@@ -1128,7 +1129,7 @@ function ContaContent() {
                     <CheckCircle2 className="w-5 h-5" />
                     CONFIRMAR RECEBIMENTO
                   </button>
-                </div>
+                </>
 
                 <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between opacity-60 grayscale">
                   <div className="flex items-center gap-2">
