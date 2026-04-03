@@ -102,15 +102,16 @@ function ContaContent() {
         setShowManualSteps(false);
         
         const amountCents = Math.round(total * 100);
-        const cleanDesc = `Venda`;
+        const amountStr = total.toFixed(2).replace('.', ',');
+        const userHandle = 'priscila-de-5h9';
         
-        // Exaustão de Possibilidades (A-F)
-        const linkA = `cloudwalk-pay://vender?amount=${amountCents}&description=${cleanDesc}`;
-        const linkB = `cloudwalk-pos://vender?amount=${amountCents}&description=${cleanDesc}`;
-        const linkC = `infinite-pay://vender?amount=${amountCents}&description=${cleanDesc}`;
-        const linkD = `cloudwalk-venda://valor=${amountCents}&descricao=${cleanDesc}`;
-        const linkE = `https://link.infinitepay.io/tap-to-pay?amount=${amountCents}&description=${cleanDesc}`;
-        const linkF = `https://infinitepay.io/venda?valor=${amountCents}&descricao=${cleanDesc}`;
+        // Bateria Personalizada para @priscila-de-5h9
+        const linkA = `https://link.infinitepay.io/${userHandle}/${amountStr}`;
+        const linkB = `https://link.infinitepay.io/${userHandle}/${amountCents}`;
+        const linkC = `cloudwalk-merchant://vender?amount=${amountCents}`;
+        const linkD = `infinitepay-merchant://vender?amount=${amountCents}`;
+        const linkE = `https://infinitepay.io/pay/${userHandle}?amount=${amountCents}`;
+        const linkF = `https://link.infinitepay.io/${userHandle}`;
 
         setSmartPayData({ 
             init_point: '', 
