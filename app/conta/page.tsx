@@ -1047,7 +1047,6 @@ function ContaContent() {
                 <h3 className="text-2xl font-black text-slate-800">InfinitePay</h3>
                 <p className="text-slate-500 text-sm">Recebimento por Aproximação</p>
               </div>
-
               <div className="px-8 pb-8 text-center">
                 <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
                   <span className="text-slate-400 text-[10px] font-bold uppercase block mb-1 tracking-widest">Valor da Comanda</span>
@@ -1058,66 +1057,72 @@ function ContaContent() {
 
                 <>
                   {!showManualSteps ? (
-                    <div className="space-y-4">
-                      {/* Universal Links via HTTPS */}
-                      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-center">
-                        <p className="text-[9px] text-indigo-500 font-black uppercase tracking-widest">
-                          🔗 app.infinitepay.io/infinitetap-app
-                        </p>
-                        <p className="text-[9px] text-indigo-400 mt-1">
-                          Tente cada variação. A que abrir o app é a certa!
+                    <div className="space-y-3">
+                      {/* PASSO 1: Copiar o valor */}
+                      <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 text-left">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">1</div>
+                          <p className="text-sm font-bold text-slate-700">Copie o valor</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-indigo-700 font-black text-lg text-center">
+                            {total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </div>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(total.toFixed(2).replace('.', ','));
+                              alert('Valor copiado! Cole no InfinitePay.');
+                            }}
+                            className="px-4 bg-indigo-600 text-white font-black rounded-xl text-xs shrink-0 active:scale-95 transition-all"
+                          >
+                            Copiar
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* PASSO 2: Abrir InfinitePay */}
+                      <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 text-left">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">2</div>
+                          <p className="text-sm font-bold text-slate-700">Abra o InfinitePay e faça a venda</p>
+                        </div>
+                        {smartPayData && (
+                          <a
+                            href={smartPayData.link_e}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full py-3 bg-indigo-600 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md"
+                            style={{ display: 'flex' }}
+                          >
+                            <Smartphone className="w-4 h-4" />
+                            Abrir InfinitePay
+                          </a>
+                        )}
+                        <p className="text-[10px] text-slate-400 mt-2 text-center italic">
+                          Vender → Cole o valor → Receber Agora → Aproximar cartão
                         </p>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
-                         <button 
-                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_a); }}
-                           className="py-3 bg-indigo-600 text-white font-black rounded-xl shadow-lg active:scale-95 transition-all text-xs flex flex-col items-center justify-center gap-1"
-                         >
-                           <Smartphone className="w-4 h-4" />
-                           <span>result_url</span>
-                           <span className="text-[9px] opacity-75 font-normal">+ amount</span>
-                         </button>
-                         <button 
-                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_b); }}
-                           className="py-3 bg-indigo-500 text-white font-black rounded-xl shadow-lg active:scale-95 transition-all text-xs flex flex-col items-center justify-center gap-1"
-                         >
-                           <Smartphone className="w-4 h-4" />
-                           <span>callback_url</span>
-                           <span className="text-[9px] opacity-75 font-normal">+ amount</span>
-                         </button>
-                         <button 
-                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_c); }}
-                           className="py-3 bg-rose-600 text-white font-black rounded-xl shadow-lg active:scale-95 transition-all text-xs flex flex-col items-center justify-center gap-1"
-                         >
-                           <Smartphone className="w-4 h-4" />
-                           <span>redirect_url</span>
-                           <span className="text-[9px] opacity-75 font-normal">+ order_id</span>
-                         </button>
-                         <button 
-                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_d); }}
-                           className="py-3 bg-rose-500 text-white font-black rounded-xl shadow-lg active:scale-95 transition-all text-xs flex flex-col items-center justify-center gap-1"
-                         >
-                           <Smartphone className="w-4 h-4" />
-                           <span>Só amount</span>
-                           <span className="text-[9px] opacity-75 font-normal">(simples)</span>
-                         </button>
+                      {/* PASSO 3: Confirmar */}
+                      <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 text-left">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-6 h-6 bg-emerald-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">3</div>
+                          <p className="text-sm font-bold text-slate-700">Após a batida do cartão, confirme aqui</p>
+                        </div>
+                        <button 
+                          onClick={handleManualConfirm}
+                          className="w-full py-4 bg-emerald-500 text-white font-bold rounded-xl flex items-center justify-center gap-3 hover:bg-emerald-600 transition-all shadow-md active:scale-95"
+                        >
+                          <CheckCircle2 className="w-5 h-5" />
+                          CONFIRMAR RECEBIMENTO
+                        </button>
                       </div>
-
-                      <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest text-center">— Fallback —</p>
-                      <button 
-                        onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_e); }}
-                        className="w-full py-3 bg-slate-600 text-white font-black rounded-xl shadow-lg active:scale-95 transition-all text-xs flex items-center justify-center gap-2"
-                      >
-                        <Smartphone className="w-4 h-4" />
-                        pay.infinitepay.io (Site)
-                      </button>
-
+                      
                       <button 
                         onClick={() => setShowManualSteps(true)}
                         className="w-full py-2 text-slate-400 font-bold hover:text-slate-600 transition-colors text-[10px] uppercase tracking-widest"
                       >
-                        Passos manuais / Ajuda
+                        Precisa de ajuda?
                       </button>
                     </div>
                   ) : (
@@ -1141,32 +1146,18 @@ function ContaContent() {
                         onClick={() => setShowManualSteps(false)}
                         className="w-full mt-4 py-3 bg-white text-indigo-600 font-black rounded-xl border border-indigo-200 text-xs uppercase tracking-widest"
                       >
-                        Voltar para os Links
+                        Voltar
                       </button>
                     </div>
                   )}
-                  
-                  <div className="flex items-center gap-4 py-4">
-                    <div className="h-px bg-slate-200 flex-1" />
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Após Batida do Cartão</span>
-                    <div className="h-px bg-slate-200 flex-1" />
-                  </div>
-
-                  <button 
-                    onClick={handleManualConfirm}
-                    className="w-full py-4 bg-emerald-500 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-emerald-600 transition-all shadow-md active:scale-95"
-                  >
-                    <CheckCircle2 className="w-5 h-5" />
-                    CONFIRMAR RECEBIMENTO
-                  </button>
                 </>
 
-                <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between opacity-60 grayscale">
+                <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between opacity-50">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-emerald-500 rounded-full" />
-                    <span className="text-[10px] font-bold text-slate-500 uppercase">Integrado via Deep Link</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">InfinitePay Tap</span>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400">P2 SMART COMPATÍVEL</span>
+                  <span className="text-[10px] font-bold text-slate-400">FLUXO MANUAL</span>
                 </div>
               </div>
             </div>
