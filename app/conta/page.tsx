@@ -92,27 +92,25 @@ function ContaContent() {
     link_tap?: string
   } | null>(null);
   const [isPolling, setIsPolling] = useState(false);
+  const [showManualSteps, setShowManualSteps] = useState(false);
 
   const handlePointPayment = async () => {
     try {
         setIsPointLoading(true);
+        setShowManualSteps(false);
         
         const amountCents = Math.round(total * 100);
         const cleanDesc = `Venda`;
         
-        // Diagnóstico: Várias combinações possíveis para iOS
-        const infinitepayVender = `infinitepay://vender?amount=${amountCents}&description=${cleanDesc}`;
-        const infinitepayVenda = `infinitepay://venda?valor=${amountCents}&descricao=${cleanDesc}`;
-        const cloudwalkVender = `cloudwalk://vender?amount=${amountCents}&description=${cleanDesc}`;
-        const cloudwalkTap = `cloudwalk-tap://venda?valor=${amountCents}&descricao=${cleanDesc}`;
+        // Universal Links (HTTPS) - Nunca dão erro de endereço inválido
+        const mainLink = `https://link.infinitepay.io/vender?amount=${amountCents}&description=${cleanDesc}`;
+        const altLink = `https://pay.infinitepay.io/venda?valor=${amountCents}&descricao=${cleanDesc}`;
 
         setSmartPayData({ 
             init_point: '', 
             id: 'infinitepay', 
-            seller_link: infinitepayVender,
-            alternative_link: cloudwalkVender,
-            link_venda: infinitepayVenda,
-            link_tap: cloudwalkTap
+            seller_link: mainLink,
+            alternative_link: altLink
         });
         
         setShowSmartModal(true);
@@ -1033,38 +1031,57 @@ function ContaContent() {
                   </span>
                 </div>
 
-                <div className="space-y-2">
-                  <button 
-                    onClick={() => { if (smartPayData) window.location.assign(smartPayData.seller_link); }}
-                    className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-md active:scale-95 text-base"
-                  >
-                    OPÇÃO A
-                  </button>
+                <div className="space-y-4">
+                  {!showManualSteps ? (
+                    <>
+                      <button 
+                        onClick={() => { if (smartPayData) window.location.assign(smartPayData.seller_link); }}
+                        className="w-full py-5 bg-indigo-600 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-xl active:scale-95 text-lg"
+                      >
+                        <Smartphone className="w-6 h-6" />
+                        ABRIR APP (Link 1)
+                      </button>
 
-                  <button 
-                    onClick={() => { if (smartPayData?.link_venda) window.location.assign(smartPayData.link_venda); }}
-                    className="w-full py-4 bg-indigo-500 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-600 transition-all shadow-md active:scale-95 text-base"
-                  >
-                    OPÇÃO B
-                  </button>
+                      <button 
+                        onClick={() => { if (smartPayData?.alternative_link) window.location.assign(smartPayData.alternative_link); }}
+                        className="w-full py-4 bg-slate-100 text-slate-700 font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-200 transition-all active:scale-95 text-base"
+                      >
+                        <Smartphone className="w-5 h-5" />
+                        ABRIR APP (Link 2)
+                      </button>
 
-                  <button 
-                    onClick={() => { if (smartPayData?.alternative_link) window.location.assign(smartPayData.alternative_link); }}
-                    className="w-full py-4 bg-slate-200 text-slate-700 font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-300 transition-all active:scale-95 text-base"
-                  >
-                    OPÇÃO C
-                  </button>
-
-                  <button 
-                    onClick={() => { if (smartPayData?.link_tap) window.location.assign(smartPayData.link_tap); }}
-                    className="w-full py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-200 transition-all active:scale-95 text-base"
-                  >
-                    OPÇÃO D
-                  </button>
-
-                  <p className="text-[11px] text-slate-400 leading-relaxed px-4 pt-2">
-                    Clique em uma opção por vez. A que abrir o app é a correta.
-                  </p>
+                      <button 
+                        onClick={() => setShowManualSteps(true)}
+                        className="w-full py-3 text-slate-500 font-bold hover:text-slate-800 transition-colors text-sm"
+                      >
+                        O app não abriu? Ver passos manuais
+                      </button>
+                    </>
+                  ) : (
+                    <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 text-left space-y-4 animate-in slide-in-from-right-4">
+                      <h4 className="font-black text-indigo-900 text-base mb-2">Siga estes passos:</h4>
+                      <div className="space-y-3">
+                        <div className="flex gap-4">
+                          <div className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</div>
+                          <p className="text-sm text-indigo-800 leading-snug">Abra o aplicativo <b>InfinitePay</b> no seu celular.</p>
+                        </div>
+                        <div className="flex gap-4">
+                          <div className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</div>
+                          <p className="text-sm text-indigo-800 leading-snug">Toque em <b>'Vender'</b> e informe o valor de <b>{total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</b>.</p>
+                        </div>
+                        <div className="flex gap-4">
+                          <div className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">3</div>
+                          <p className="text-sm text-indigo-800 leading-snug">Clique em <b>'Receber Agora'</b> e peça para a cliente aproximar o cartão.</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => setShowManualSteps(false)}
+                        className="w-full mt-4 py-3 bg-white text-indigo-600 font-black rounded-xl border border-indigo-200 text-xs uppercase tracking-widest"
+                      >
+                        Voltar para os Links
+                      </button>
+                    </div>
+                  )}
                   
                   <div className="flex items-center gap-4 py-4">
                     <div className="h-px bg-slate-200 flex-1" />
