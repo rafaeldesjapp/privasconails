@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSupabaseAuth } from '@/hooks/use-supabase';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { AnimatePresence } from 'framer-motion';
 import Auth from '@/components/Auth';
 import Header from '@/components/Header';
@@ -43,11 +44,23 @@ const parseServicesObj = (str: string) => {
 };
 
 export default function ContaPage() {
+  return (
+    <Suspense fallback={null}>
+      <ContaContent />
+    </Suspense>
+  );
+}
+
+function ContaContent() {
   const { user, role, loading: authLoading } = useSupabaseAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const isStaff = role === 'admin' || role === 'desenvolvedor';
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
+  // ... rest of the component state from before ...
   const [viewState, setViewState] = useState<'loading'|'select_client'|'bill'>('loading');
+  // ...
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<{id: string, name: string} | null>(null);
   const [search, setSearch] = useState('');
@@ -82,14 +95,21 @@ export default function ContaPage() {
         // 1. Gerar Link de Vendedor InfinitePay (InfiniteTap)
         // Valor formatado p/ o deep link (ex: 10.50)
         const amountStr = total.toFixed(2);
-        const sellerDeepLink = `infinitepay://vender?amount=${amountStr}&description=Venda_Nails_${selectedClient?.name || 'Comanda'}`;
+        const billingIds = billingItems.map(b => b.id).join(',');
+        
+        // Configura URL de Retorno Automático
+        const callbackUrl = encodeURIComponent(`https://privasconails.vercel.app/api/pagamentos/infinitepay-callback?ids=${billingIds}`);
+        
+        const sellerDeepLink = `infinitepay://vender?amount=${amountStr}&description=Venda_Nails_${selectedClient?.name || 'Comanda'}&callback_url=${callbackUrl}`;
 
         setSmartPayData({ 
             init_point: '', // Não usado na InfinitePay direta
             id: 'infinitepay', 
             seller_link: sellerDeepLink
         });
+        
         setShowSmartModal(true);
+        startPolling(); // Inicia polling redundante caso o callback falhe
     } catch (error: any) {
         alert("Erro no Recebimento: " + error.message);
     } finally {
@@ -215,6 +235,21 @@ export default function ContaPage() {
 
   useEffect(() => {
     if (!user) return;
+    
+    // Detecta se o usuário voltou da InfinitePay com sucesso
+    const paymentStatus = searchParams.get('payment');
+    if (paymentStatus === 'success') {
+       alert("Pagamento InfinitePay Confirmado com Sucesso!");
+       // Limpa a URL para não repetir o alerta
+       router.replace('/conta');
+       if (role === 'admin' || role === 'desenvolvedor') {
+          setSelectedClient(null);
+          setViewState('select_client');
+       } else {
+          fetchBill(user.id);
+       }
+    }
+
     loadPrices();
     
     if (role === 'admin' || role === 'desenvolvedor') {
@@ -225,7 +260,7 @@ export default function ContaPage() {
       setViewState('bill');
       fetchBill(user.id);
     }
-  }, [user, role]);
+  }, [user, role, searchParams, router]);
 
   const loadPrices = async () => {
     // Categorias padrão servindo como fallback caso ocorra erro
