@@ -86,16 +86,7 @@ function ContaContent() {
   const [smartPayData, setSmartPayData] = useState<{
     init_point: string, 
     id: string, 
-    link_a: string, 
-    link_b: string,
-    link_c: string,
-    link_d: string,
-    link_e: string,
-    link_f: string,
-    link_g: string,
-    link_h: string,
-    link_i: string,
-    link_j: string
+    link: string
   } | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [showManualSteps, setShowManualSteps] = useState(false);
@@ -105,45 +96,16 @@ function ContaContent() {
         setIsPointLoading(true);
         setShowManualSteps(false);
         
-        const amountCents = Math.round(total * 100);
         const amountStr = total.toFixed(2).replace('.', ',');
         const userHandle = 'priscila-de-5h9';
         
-        // Diagnóstico Final (A-F) - @priscila-de-5h9
-        const linkA = `https://link.infinitepay.io/${userHandle}?amount=${total.toFixed(2)}`;
-        const linkB = `https://link.infinitepay.io/${userHandle}?valor=${amountStr}`;
-        const linkC = `https://link.infinitepay.io/${userHandle}/${total.toFixed(2)}`;
-        const linkD = `cloudwalk-merchant://vender?amount=${amountCents}`;
-        const linkE = `infinitepay://vender?amount=${amountCents}`;
-        const linkF = `https://link.infinitepay.io/${userHandle}/tap-to-pay?amount=${total.toFixed(2)}`;
-        
-        // --- Novas Opções Reais (G-J) ---
-        const baseUrl = window.location.origin;
-        const billingIds = billingItems.map(b => b.id).join(',');
-        const callbackUrl = `${baseUrl}/api/pagamentos/infinitepay-callback?ids=${billingIds}`;
-        
-        // Link G: Universal Link com Virgula
-        const linkG = `https://pay.infinitepay.io/${userHandle}/${amountStr}`;
-        // Link H: Deep Link Nativo InfiniteTap (centavos + callback)
-        const linkH = `infinitepay://infinitetap?amount=${amountCents}&callback=${encodeURIComponent(callbackUrl)}`;
-        // Link I: Deep Link CloudWalk (centavos + callback)
-        const linkI = `cloudwalk://pay?amount=${amountCents}&callback=${encodeURIComponent(callbackUrl)}`;
-        // Link J: Formato /p/ (comum em alguns casos)
-        const linkJ = `https://link.infinitepay.io/p/${userHandle}/${amountStr}`;
+        // --- Opção G (Vencedora): Universal Link com Vírgula ---
+        const paymentLink = `https://pay.infinitepay.io/${userHandle}/${amountStr}`;
 
         setSmartPayData({ 
             init_point: '', 
             id: 'infinitepay', 
-            link_a: linkA,
-            link_b: linkB,
-            link_c: linkC,
-            link_d: linkD,
-            link_e: linkE,
-            link_f: linkF,
-            link_g: linkG,
-            link_h: linkH,
-            link_i: linkI,
-            link_j: linkJ
+            link: paymentLink
         });
         
         setShowSmartModal(true);
@@ -1066,77 +1028,26 @@ function ContaContent() {
 
                 <>
                   {!showManualSteps ? (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-3">
-                        <button 
-                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_a); }}
-                          className="py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
-                        >
-                          POSSIB. A
-                        </button>
-                        <button 
-                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_b); }}
-                          className="py-4 bg-indigo-500 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
-                        >
-                          POSSIB. B
-                        </button>
-                        <button 
-                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_c); }}
-                          className="py-4 bg-slate-600 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
-                        >
-                          POSSIB. C
-                        </button>
-                        <button 
-                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_d); }}
-                          className="py-4 bg-slate-500 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
-                        >
-                          POSSIB. D
-                        </button>
-                        <button 
-                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_e); }}
-                          className="py-4 bg-emerald-600 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
-                        >
-                          POSSIB. E
-                        </button>
-                        <button 
-                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_f); }}
-                          className="py-4 bg-emerald-500 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
-                        >
-                          POSSIB. F
-                        </button>
-                        
-                        {/* Novas Opções Sugeridas */}
-                        <button 
-                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_g); }}
-                          className="py-4 bg-rose-600 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
-                        >
-                          POSSIB. G (Pay)
-                        </button>
-                        <button 
-                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_h); }}
-                          className="py-4 bg-rose-500 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
-                        >
-                          POSSIB. H (Tap)
-                        </button>
-                        <button 
-                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_i); }}
-                          className="py-4 bg-cyan-600 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
-                        >
-                          POSSIB. I (Cloud)
-                        </button>
-                        <button 
-                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_j); }}
-                          className="py-4 bg-cyan-500 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
-                        >
-                          POSSIB. J (/p/)
-                        </button>
+                    <div className="space-y-6">
+                      <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100 flex flex-col items-center gap-3">
+                         <p className="text-xs text-indigo-600 font-bold uppercase tracking-widest">Opção Recomendada</p>
+                         <button 
+                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link); }}
+                           className="w-full py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all text-base flex items-center justify-center gap-3 animate-pulse"
+                         >
+                           <Smartphone className="w-6 h-6" />
+                           PAGAR AGORA (REDESENHAR)
+                         </button>
+                         <p className="text-[10px] text-slate-400 text-center px-4">
+                           Ao clicar, você será levada para o ambiente seguro da InfinitePay para concluir o {isStaff ? 'recebimento' : 'pagamento'}.
+                         </p>
                       </div>
 
                       <button 
                         onClick={() => setShowManualSteps(true)}
-                        className="w-full py-3 text-slate-500 font-bold hover:text-slate-800 transition-colors text-sm"
+                        className="w-full py-2 text-slate-400 font-bold hover:text-slate-600 transition-colors text-[10px] uppercase tracking-widest"
                       >
-                        O app não abriu? Ver passos manuais
+                        Problemas com o link? Ver ajuda manual
                       </button>
                     </div>
                   ) : (
