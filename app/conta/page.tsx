@@ -86,10 +86,11 @@ function ContaContent() {
   const [smartPayData, setSmartPayData] = useState<{
     init_point: string, 
     id: string, 
-    link_g: string,
-    link_n: string,
-    link_o: string,
-    link_p: string
+    link_a: string,  // cw-merchant://vender (CloudWalk oficial)
+    link_b: string,  // cw-merchant://sell (variação inglês)
+    link_c: string,  // infinitepay://vender
+    link_d: string,  // infinitepay://charge
+    link_e: string,  // link web fallback
   } | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [showManualSteps, setShowManualSteps] = useState(false);
@@ -103,30 +104,36 @@ function ContaContent() {
         const amountCents = Math.round(total * 100);
         const userHandle = 'priscila-de-5h9';
         
-        // --- Opções de Teste MERCHANT (N, O, P) ---
         const baseUrl = window.location.origin;
         const billingIds = billingItems.map(b => b.id).join(',');
-        const callbackUrl = `${baseUrl}/api/pagamentos/infinitepay-callback?ids=${billingIds}`;
+        const resultUrl = `${baseUrl}/conta?payment=success&ids=${billingIds}`;
+        const encodedResultUrl = encodeURIComponent(resultUrl);
         
-        // Link G (Web Checkout): Para caso de erro no NFC
-        const linkG = `https://pay.infinitepay.io/${userHandle}/${amountStr}`;
+        // ── ESQUEMAS MAIS PROVÁVEIS (CloudWalk é a empresa-mãe da InfinitePay) ──
         
-        // Link N (Merchant Vender): Esquema oficial PDV
-        const linkN = `infinitepay-merchant://vender?amount=${amountCents}&order_id=${billingIds}&callback_url=${encodeURIComponent(callbackUrl)}`;
+        // Link A: cw-merchant://vender — Esquema CloudWalk com amount em centavos
+        const linkA = `cw-merchant://vender?amount=${amountCents}&order_id=${billingIds}&result_url=${encodedResultUrl}`;
         
-        // Link O (Merchant Pay): Variação com comando pay
-        const linkO = `infinitepay-merchant://pay?amount=${amountCents}&order_id=${billingIds}&callback_url=${encodeURIComponent(callbackUrl)}`;
+        // Link B: cw-merchant://sell — Variação em inglês do mesmo esquema
+        const linkB = `cw-merchant://sell?amount=${amountCents}&order_id=${billingIds}&result_url=${encodedResultUrl}`;
         
-        // Link P (Merchant Venda): Variação com comando venda
-        const linkP = `infinitepay-merchant://venda?amount=${amountCents}&order_id=${billingIds}&callback_url=${encodeURIComponent(callbackUrl)}`;
+        // Link C: infinitepay://vender — Esquema com nome do app
+        const linkC = `infinitepay://vender?amount=${amountCents}&order_id=${billingIds}&result_url=${encodedResultUrl}`;
+        
+        // Link D: infinitepay://charge — Variação 'charge' 
+        const linkD = `infinitepay://charge?amount=${amountCents}&order_id=${billingIds}&result_url=${encodedResultUrl}`;
+        
+        // Link E: Web fallback — Link público da InfinitePay com valor pré-preenchido
+        const linkE = `https://pay.infinitepay.io/${userHandle}/${amountStr}`;
 
         setSmartPayData({ 
             init_point: '', 
             id: 'infinitepay', 
-            link_g: linkG,
-            link_n: linkN,
-            link_o: linkO,
-            link_p: linkP
+            link_a: linkA,
+            link_b: linkB,
+            link_c: linkC,
+            link_d: linkD,
+            link_e: linkE,
         });
         
         setShowSmartModal(true);
@@ -1049,44 +1056,58 @@ function ContaContent() {
 
                 <>
                   {!showManualSteps ? (
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-4">
+                      {/* Grupo 1: Esquemas CloudWalk (mais prováveis) */}
+                      <p className="text-[9px] text-indigo-400 font-black uppercase tracking-widest text-center">— cw-merchant:// (CloudWalk) —</p>
+                      <div className="grid grid-cols-2 gap-2">
                          <button 
-                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_n); }}
-                           className="py-4 bg-rose-600 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
+                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_a); }}
+                           className="py-3 bg-indigo-600 text-white font-black rounded-xl shadow-lg active:scale-95 transition-all text-xs flex flex-col items-center justify-center gap-1"
                          >
-                           <Smartphone className="w-5 h-5" />
-                           POSSIB. N
+                           <Smartphone className="w-4 h-4" />
+                           <span>cw-merchant</span>
+                           <span className="text-[9px] opacity-75 font-normal">//vender</span>
                          </button>
                          <button 
-                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_o); }}
-                           className="py-4 bg-rose-500 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
+                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_b); }}
+                           className="py-3 bg-indigo-500 text-white font-black rounded-xl shadow-lg active:scale-95 transition-all text-xs flex flex-col items-center justify-center gap-1"
                          >
-                           <Smartphone className="w-5 h-5" />
-                           POSSIB. O
-                         </button>
-                         <button 
-                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_p); }}
-                           className="py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
-                         >
-                           <Smartphone className="w-5 h-5" />
-                           POSSIB. P
-                         </button>
-                         <button 
-                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_g); }}
-                           className="py-4 bg-slate-600 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
-                         >
-                           <Smartphone className="w-5 h-5" />
-                           POSSIB. G
+                           <Smartphone className="w-4 h-4" />
+                           <span>cw-merchant</span>
+                           <span className="text-[9px] opacity-75 font-normal">//sell</span>
                          </button>
                       </div>
 
-                      <div className="text-center">
-                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2">— TESTE MERCHANT —</p>
-                         <p className="text-[10px] text-slate-400 italic px-4">
-                           N, O e P usam o esquema oficial para integrações comerciais no iOS. O valor é enviado em centavos.
-                         </p>
+                      {/* Grupo 2: Esquemas infinitepay:// */}
+                      <p className="text-[9px] text-rose-400 font-black uppercase tracking-widest text-center">— infinitepay:// —</p>
+                      <div className="grid grid-cols-2 gap-2">
+                         <button 
+                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_c); }}
+                           className="py-3 bg-rose-600 text-white font-black rounded-xl shadow-lg active:scale-95 transition-all text-xs flex flex-col items-center justify-center gap-1"
+                         >
+                           <Smartphone className="w-4 h-4" />
+                           <span>infinitepay</span>
+                           <span className="text-[9px] opacity-75 font-normal">//vender</span>
+                         </button>
+                         <button 
+                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_d); }}
+                           className="py-3 bg-rose-500 text-white font-black rounded-xl shadow-lg active:scale-95 transition-all text-xs flex flex-col items-center justify-center gap-1"
+                         >
+                           <Smartphone className="w-4 h-4" />
+                           <span>infinitepay</span>
+                           <span className="text-[9px] opacity-75 font-normal">//charge</span>
+                         </button>
                       </div>
+
+                      {/* Grupo 3: Fallback web */}
+                      <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest text-center">— Link Web (Fallback) —</p>
+                      <button 
+                        onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_e); }}
+                        className="w-full py-3 bg-slate-600 text-white font-black rounded-xl shadow-lg active:scale-95 transition-all text-xs flex items-center justify-center gap-2"
+                      >
+                        <Smartphone className="w-4 h-4" />
+                        pay.infinitepay.io (Site)
+                      </button>
 
                       <button 
                         onClick={() => setShowManualSteps(true)}
