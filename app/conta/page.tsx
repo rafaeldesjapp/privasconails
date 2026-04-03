@@ -93,17 +93,20 @@ function ContaContent() {
         setIsPointLoading(true);
         
         // 1. Gerar Link de Vendedor InfinitePay (InfiniteTap)
-        // Valor formatado p/ o deep link (ex: 10.50)
         const amountStr = total.toFixed(2);
-        const billingIds = billingItems.map(b => b.id).join(',');
+        const billingIdsArr = billingItems.map(b => b.id);
+        const billingIds = billingIdsArr.join(',');
         
-        // Configura URL de Retorno Automático
+        // Descrição ultra-simples para evitar problemas de caracteres (máx 15 chars se possível)
+        const cleanDesc = `Nails_${total.toFixed(0)}`;
+        
+        // Configura URL de Retorno Automático (simplificada)
         const callbackUrl = encodeURIComponent(`https://privasconails.vercel.app/api/pagamentos/infinitepay-callback?ids=${billingIds}`);
         
-        const sellerDeepLink = `infinitepay://vender?amount=${amountStr}&description=Venda_Nails_${selectedClient?.name || 'Comanda'}&callback_url=${callbackUrl}`;
+        const sellerDeepLink = `infinitepay://vender?amount=${amountStr}&description=${cleanDesc}&callback_url=${callbackUrl}`;
 
         setSmartPayData({ 
-            init_point: '', // Não usado na InfinitePay direta
+            init_point: '', 
             id: 'infinitepay', 
             seller_link: sellerDeepLink
         });
@@ -111,7 +114,7 @@ function ContaContent() {
         setShowSmartModal(true);
         startPolling(); // Inicia polling redundante caso o callback falhe
     } catch (error: any) {
-        alert("Erro no Recebimento: " + error.message);
+        alert("Erro no Recebimento: " + (error.message || "Erro desconhecido"));
     } finally {
         setIsPointLoading(false);
     }
@@ -1027,16 +1030,24 @@ function ContaContent() {
                 </div>
 
                 <div className="space-y-4">
-                  <a 
-                    href={smartPayData.seller_link}
+                  <button 
+                    onClick={() => {
+                      if (smartPayData) {
+                        window.location.assign(smartPayData.seller_link);
+                      }
+                    }}
                     className="w-full py-5 bg-indigo-600 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-xl active:scale-95 text-lg"
                   >
                     <Smartphone className="w-6 h-6" />
                     COBRAR AGORA
-                  </a>
+                  </button>
 
                   <p className="text-[11px] text-slate-400 leading-relaxed px-4">
                     Toque no botão acima para abrir o app <b>InfinitePay</b> no seu celular com o valor já preenchido.
+                  </p>
+                  
+                  <p className="text-[10px] text-red-400 font-medium px-4">
+                    Se o erro de "Endereço Inválido" persistir, verifique se o app InfinitePay está instalado e logado.
                   </p>
                   
                   <div className="flex items-center gap-4 py-4">
