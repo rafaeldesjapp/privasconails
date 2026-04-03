@@ -83,26 +83,36 @@ function ContaContent() {
   const [walletPreferenceId, setWalletPreferenceId] = useState<string | null>(null);
   const [isPointLoading, setIsPointLoading] = useState(false);
   const [showSmartModal, setShowSmartModal] = useState(false);
-  const [smartPayData, setSmartPayData] = useState<{init_point: string, id: string, seller_link: string, alternative_link?: string} | null>(null);
+  const [smartPayData, setSmartPayData] = useState<{
+    init_point: string, 
+    id: string, 
+    seller_link: string, 
+    alternative_link?: string,
+    link_venda?: string,
+    link_tap?: string
+  } | null>(null);
   const [isPolling, setIsPolling] = useState(false);
 
   const handlePointPayment = async () => {
     try {
         setIsPointLoading(true);
         
-        // 1. Converter Valor para Centavos (inteiros sem ponto p/ evitar erro no Safari)
         const amountCents = Math.round(total * 100);
-        const cleanDesc = `Venda_Tap`;
+        const cleanDesc = `Venda`;
         
-        // Esquemas de URL ultra-simplificados
-        const infinitepayLink = `infinitepay://vender?amount=${amountCents}&description=${cleanDesc}`;
-        const cloudwalkLink = `cloudwalk://vender?amount=${amountCents}&description=${cleanDesc}`;
+        // Diagnóstico: Várias combinações possíveis para iOS
+        const infinitepayVender = `infinitepay://vender?amount=${amountCents}&description=${cleanDesc}`;
+        const infinitepayVenda = `infinitepay://venda?valor=${amountCents}&descricao=${cleanDesc}`;
+        const cloudwalkVender = `cloudwalk://vender?amount=${amountCents}&description=${cleanDesc}`;
+        const cloudwalkTap = `cloudwalk-tap://venda?valor=${amountCents}&descricao=${cleanDesc}`;
 
         setSmartPayData({ 
             init_point: '', 
             id: 'infinitepay', 
-            seller_link: infinitepayLink,
-            alternative_link: cloudwalkLink
+            seller_link: infinitepayVender,
+            alternative_link: cloudwalkVender,
+            link_venda: infinitepayVenda,
+            link_tap: cloudwalkTap
         });
         
         setShowSmartModal(true);
@@ -1023,33 +1033,37 @@ function ContaContent() {
                   </span>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <button 
-                    onClick={() => {
-                      if (smartPayData) window.location.assign(smartPayData.seller_link);
-                    }}
-                    className="w-full py-5 bg-indigo-600 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-xl active:scale-95 text-lg"
+                    onClick={() => { if (smartPayData) window.location.assign(smartPayData.seller_link); }}
+                    className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-md active:scale-95 text-base"
                   >
-                    <Smartphone className="w-6 h-6" />
-                    COBRAR AGORA (Link 1)
+                    OPÇÃO A
                   </button>
 
                   <button 
-                    onClick={() => {
-                      if (smartPayData?.alternative_link) window.location.assign(smartPayData.alternative_link);
-                    }}
-                    className="w-full py-4 bg-slate-100 text-slate-700 font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-200 transition-all active:scale-95 text-base"
+                    onClick={() => { if (smartPayData?.link_venda) window.location.assign(smartPayData.link_venda); }}
+                    className="w-full py-4 bg-indigo-500 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-600 transition-all shadow-md active:scale-95 text-base"
                   >
-                    <Smartphone className="w-5 h-5" />
-                    LINK ALTERNATIVO (Link 2)
+                    OPÇÃO B
                   </button>
 
-                  <p className="text-[11px] text-slate-400 leading-relaxed px-4">
-                    Se o Link 1 der "Endereço Inválido", tente o <b>Link 2</b>. Se ambos falharem, o app não reconhece o comando.
-                  </p>
-                  
-                  <p className="text-[10px] text-indigo-400 font-medium px-4">
-                    Certifique-se de que o app InfinitePay está instalado e logado.
+                  <button 
+                    onClick={() => { if (smartPayData?.alternative_link) window.location.assign(smartPayData.alternative_link); }}
+                    className="w-full py-4 bg-slate-200 text-slate-700 font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-300 transition-all active:scale-95 text-base"
+                  >
+                    OPÇÃO C
+                  </button>
+
+                  <button 
+                    onClick={() => { if (smartPayData?.link_tap) window.location.assign(smartPayData.link_tap); }}
+                    className="w-full py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-200 transition-all active:scale-95 text-base"
+                  >
+                    OPÇÃO D
+                  </button>
+
+                  <p className="text-[11px] text-slate-400 leading-relaxed px-4 pt-2">
+                    Clique em uma opção por vez. A que abrir o app é a correta.
                   </p>
                   
                   <div className="flex items-center gap-4 py-4">
