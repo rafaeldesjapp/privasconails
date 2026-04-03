@@ -86,7 +86,10 @@ function ContaContent() {
   const [smartPayData, setSmartPayData] = useState<{
     init_point: string, 
     id: string, 
-    link: string
+    link_g: string,
+    link_k: string,
+    link_l: string,
+    link_m: string
   } | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [showManualSteps, setShowManualSteps] = useState(false);
@@ -97,15 +100,33 @@ function ContaContent() {
         setShowManualSteps(false);
         
         const amountStr = total.toFixed(2).replace('.', ',');
+        const amountCents = Math.round(total * 100);
         const userHandle = 'priscila-de-5h9';
         
-        // --- Opção G (Vencedora): Universal Link com Vírgula ---
-        const paymentLink = `https://pay.infinitepay.io/${userHandle}/${amountStr}`;
+        // --- Opções de Teste Reais (G, K, L, M) ---
+        const baseUrl = window.location.origin;
+        const billingIds = billingItems.map(b => b.id).join(',');
+        const callbackUrl = `${baseUrl}/api/pagamentos/infinitepay-callback?ids=${billingIds}`;
+        
+        // Link G (Vencedor Web): Online Checkout
+        const linkG = `https://pay.infinitepay.io/${userHandle}/${amountStr}`;
+        
+        // Link K (CloudWalk Vender): Possível Deep Link Presencial
+        const linkK = `cloudwalk://vender?valor=${total.toFixed(2)}&id_venda=${billingIds}&callback_url=${encodeURIComponent(callbackUrl)}`;
+        
+        // Link L (InfinitePay Vender): Variação de Esquema
+        const linkL = `infinitepay://vender?valor=${total.toFixed(2)}&id_venda=${billingIds}&callback_url=${encodeURIComponent(callbackUrl)}`;
+        
+        // Link M (CloudWalk Pay): Variação de Ação e Cents
+        const linkM = `cloudwalk://pay?amount=${amountCents}&order_id=${billingIds}&callback_url=${encodeURIComponent(callbackUrl)}`;
 
         setSmartPayData({ 
             init_point: '', 
             id: 'infinitepay', 
-            link: paymentLink
+            link_g: linkG,
+            link_k: linkK,
+            link_l: linkL,
+            link_m: linkM
         });
         
         setShowSmartModal(true);
@@ -1029,17 +1050,41 @@ function ContaContent() {
                 <>
                   {!showManualSteps ? (
                     <div className="space-y-6">
-                      <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100 flex flex-col items-center gap-3">
-                         <p className="text-xs text-indigo-600 font-bold uppercase tracking-widest">Opção Recomendada</p>
+                      <div className="grid grid-cols-2 gap-3">
                          <button 
-                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link); }}
-                           className="w-full py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all text-base flex items-center justify-center gap-3 animate-pulse"
+                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_k); }}
+                           className="py-4 bg-rose-600 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
                          >
-                           <Smartphone className="w-6 h-6" />
-                           PAGAR AGORA (REDESENHAR)
+                           <Smartphone className="w-5 h-5" />
+                           POSSIB. K
                          </button>
-                         <p className="text-[10px] text-slate-400 text-center px-4">
-                           Ao clicar, você será levada para o ambiente seguro da InfinitePay para concluir o {isStaff ? 'recebimento' : 'pagamento'}.
+                         <button 
+                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_l); }}
+                           className="py-4 bg-rose-500 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
+                         >
+                           <Smartphone className="w-5 h-5" />
+                           POSSIB. L
+                         </button>
+                         <button 
+                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_m); }}
+                           className="py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
+                         >
+                           <Smartphone className="w-5 h-5" />
+                           POSSIB. M
+                         </button>
+                         <button 
+                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_g); }}
+                           className="py-4 bg-slate-600 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
+                         >
+                           <Smartphone className="w-5 h-5" />
+                           POSSIB. G
+                         </button>
+                      </div>
+
+                      <div className="text-center">
+                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2">— O que testar agora —</p>
+                         <p className="text-[10px] text-slate-400 italic px-4">
+                           Ao clicar nos botões K, L ou M, o sistema tentará abrir o App InfinitePay para aceitar **Aproximação (Tap)**. A opção G é o link web que funcionou antes.
                          </p>
                       </div>
 
@@ -1047,7 +1092,7 @@ function ContaContent() {
                         onClick={() => setShowManualSteps(true)}
                         className="w-full py-2 text-slate-400 font-bold hover:text-slate-600 transition-colors text-[10px] uppercase tracking-widest"
                       >
-                        Problemas com o link? Ver ajuda manual
+                        Passos manuais / Ajuda
                       </button>
                     </div>
                   ) : (
