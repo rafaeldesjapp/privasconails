@@ -105,13 +105,13 @@ function ContaContent() {
         const amountStr = total.toFixed(2).replace('.', ',');
         const userHandle = 'priscila-de-5h9';
         
-        // Bateria Personalizada para @priscila-de-5h9
-        const linkA = `https://link.infinitepay.io/${userHandle}/${amountStr}`;
-        const linkB = `https://link.infinitepay.io/${userHandle}/${amountCents}`;
-        const linkC = `cloudwalk-merchant://vender?amount=${amountCents}`;
-        const linkD = `infinitepay-merchant://vender?amount=${amountCents}`;
-        const linkE = `https://infinitepay.io/pay/${userHandle}?amount=${amountCents}`;
-        const linkF = `https://link.infinitepay.io/${userHandle}`;
+        // Diagnóstico Final (A-F) - @priscila-de-5h9
+        const linkA = `https://link.infinitepay.io/${userHandle}?amount=${total.toFixed(2)}`;
+        const linkB = `https://link.infinitepay.io/${userHandle}?valor=${amountStr}`;
+        const linkC = `https://link.infinitepay.io/${userHandle}/${total.toFixed(2)}`;
+        const linkD = `cloudwalk-merchant://vender?amount=${amountCents}`;
+        const linkE = `infinitepay://vender?amount=${amountCents}`;
+        const linkF = `https://link.infinitepay.io/${userHandle}/tap-to-pay?amount=${total.toFixed(2)}`;
 
         setSmartPayData({ 
             init_point: '', 
