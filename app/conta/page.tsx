@@ -86,10 +86,12 @@ function ContaContent() {
   const [smartPayData, setSmartPayData] = useState<{
     init_point: string, 
     id: string, 
-    seller_link: string, 
-    alternative_link?: string,
-    link_venda?: string,
-    link_tap?: string
+    link_a: string, 
+    link_b: string,
+    link_c: string,
+    link_d: string,
+    link_e: string,
+    link_f: string
   } | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [showManualSteps, setShowManualSteps] = useState(false);
@@ -102,15 +104,23 @@ function ContaContent() {
         const amountCents = Math.round(total * 100);
         const cleanDesc = `Venda`;
         
-        // Universal Links (HTTPS) - Nunca dão erro de endereço inválido
-        const mainLink = `https://link.infinitepay.io/vender?amount=${amountCents}&description=${cleanDesc}`;
-        const altLink = `https://pay.infinitepay.io/venda?valor=${amountCents}&descricao=${cleanDesc}`;
+        // Exaustão de Possibilidades (A-F)
+        const linkA = `cloudwalk-pay://vender?amount=${amountCents}&description=${cleanDesc}`;
+        const linkB = `cloudwalk-pos://vender?amount=${amountCents}&description=${cleanDesc}`;
+        const linkC = `infinite-pay://vender?amount=${amountCents}&description=${cleanDesc}`;
+        const linkD = `cloudwalk-venda://valor=${amountCents}&descricao=${cleanDesc}`;
+        const linkE = `https://link.infinitepay.io/tap-to-pay?amount=${amountCents}&description=${cleanDesc}`;
+        const linkF = `https://infinitepay.io/venda?valor=${amountCents}&descricao=${cleanDesc}`;
 
         setSmartPayData({ 
             init_point: '', 
             id: 'infinitepay', 
-            seller_link: mainLink,
-            alternative_link: altLink
+            link_a: linkA,
+            link_b: linkB,
+            link_c: linkC,
+            link_d: linkD,
+            link_e: linkE,
+            link_f: linkF
         });
         
         setShowSmartModal(true);
@@ -1031,24 +1041,46 @@ function ContaContent() {
                   </span>
                 </div>
 
-                <div className="space-y-4">
                   {!showManualSteps ? (
-                    <>
-                      <button 
-                        onClick={() => { if (smartPayData) window.location.assign(smartPayData.seller_link); }}
-                        className="w-full py-5 bg-indigo-600 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-xl active:scale-95 text-lg"
-                      >
-                        <Smartphone className="w-6 h-6" />
-                        ABRIR APP (Link 1)
-                      </button>
-
-                      <button 
-                        onClick={() => { if (smartPayData?.alternative_link) window.location.assign(smartPayData.alternative_link); }}
-                        className="w-full py-4 bg-slate-100 text-slate-700 font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-200 transition-all active:scale-95 text-base"
-                      >
-                        <Smartphone className="w-5 h-5" />
-                        ABRIR APP (Link 2)
-                      </button>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <button 
+                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_a); }}
+                          className="py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
+                        >
+                          POSSIB. A
+                        </button>
+                        <button 
+                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_b); }}
+                          className="py-4 bg-indigo-500 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
+                        >
+                          POSSIB. B
+                        </button>
+                        <button 
+                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_c); }}
+                          className="py-4 bg-slate-600 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
+                        >
+                          POSSIB. C
+                        </button>
+                        <button 
+                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_d); }}
+                          className="py-4 bg-slate-500 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
+                        >
+                          POSSIB. D
+                        </button>
+                        <button 
+                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_e); }}
+                          className="py-4 bg-emerald-600 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
+                        >
+                          POSSIB. E
+                        </button>
+                        <button 
+                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_f); }}
+                          className="py-4 bg-emerald-500 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
+                        >
+                          POSSIB. F
+                        </button>
+                      </div>
 
                       <button 
                         onClick={() => setShowManualSteps(true)}
@@ -1056,7 +1088,7 @@ function ContaContent() {
                       >
                         O app não abriu? Ver passos manuais
                       </button>
-                    </>
+                    </div>
                   ) : (
                     <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 text-left space-y-4 animate-in slide-in-from-right-4">
                       <h4 className="font-black text-indigo-900 text-base mb-2">Siga estes passos:</h4>
