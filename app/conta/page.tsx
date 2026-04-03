@@ -87,9 +87,9 @@ function ContaContent() {
     init_point: string, 
     id: string, 
     link_g: string,
-    link_k: string,
-    link_l: string,
-    link_m: string
+    link_n: string,
+    link_o: string,
+    link_p: string
   } | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [showManualSteps, setShowManualSteps] = useState(false);
@@ -103,30 +103,30 @@ function ContaContent() {
         const amountCents = Math.round(total * 100);
         const userHandle = 'priscila-de-5h9';
         
-        // --- Opções de Teste Reais (G, K, L, M) ---
+        // --- Opções de Teste MERCHANT (N, O, P) ---
         const baseUrl = window.location.origin;
         const billingIds = billingItems.map(b => b.id).join(',');
         const callbackUrl = `${baseUrl}/api/pagamentos/infinitepay-callback?ids=${billingIds}`;
         
-        // Link G (Vencedor Web): Online Checkout
+        // Link G (Web Checkout): Para caso de erro no NFC
         const linkG = `https://pay.infinitepay.io/${userHandle}/${amountStr}`;
         
-        // Link K (CloudWalk Vender): Possível Deep Link Presencial
-        const linkK = `cloudwalk://vender?valor=${total.toFixed(2)}&id_venda=${billingIds}&callback_url=${encodeURIComponent(callbackUrl)}`;
+        // Link N (Merchant Vender): Esquema oficial PDV
+        const linkN = `infinitepay-merchant://vender?amount=${amountCents}&order_id=${billingIds}&callback_url=${encodeURIComponent(callbackUrl)}`;
         
-        // Link L (InfinitePay Vender): Variação de Esquema
-        const linkL = `infinitepay://vender?valor=${total.toFixed(2)}&id_venda=${billingIds}&callback_url=${encodeURIComponent(callbackUrl)}`;
+        // Link O (Merchant Pay): Variação com comando pay
+        const linkO = `infinitepay-merchant://pay?amount=${amountCents}&order_id=${billingIds}&callback_url=${encodeURIComponent(callbackUrl)}`;
         
-        // Link M (CloudWalk Pay): Variação de Ação e Cents
-        const linkM = `cloudwalk://pay?amount=${amountCents}&order_id=${billingIds}&callback_url=${encodeURIComponent(callbackUrl)}`;
+        // Link P (Merchant Venda): Variação com comando venda
+        const linkP = `infinitepay-merchant://venda?amount=${amountCents}&order_id=${billingIds}&callback_url=${encodeURIComponent(callbackUrl)}`;
 
         setSmartPayData({ 
             init_point: '', 
             id: 'infinitepay', 
             link_g: linkG,
-            link_k: linkK,
-            link_l: linkL,
-            link_m: linkM
+            link_n: linkN,
+            link_o: linkO,
+            link_p: linkP
         });
         
         setShowSmartModal(true);
@@ -1052,25 +1052,25 @@ function ContaContent() {
                     <div className="space-y-6">
                       <div className="grid grid-cols-2 gap-3">
                          <button 
-                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_k); }}
+                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_n); }}
                            className="py-4 bg-rose-600 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
                          >
                            <Smartphone className="w-5 h-5" />
-                           POSSIB. K
+                           POSSIB. N
                          </button>
                          <button 
-                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_l); }}
+                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_o); }}
                            className="py-4 bg-rose-500 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
                          >
                            <Smartphone className="w-5 h-5" />
-                           POSSIB. L
+                           POSSIB. O
                          </button>
                          <button 
-                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_m); }}
+                           onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_p); }}
                            className="py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
                          >
                            <Smartphone className="w-5 h-5" />
-                           POSSIB. M
+                           POSSIB. P
                          </button>
                          <button 
                            onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_g); }}
@@ -1082,9 +1082,9 @@ function ContaContent() {
                       </div>
 
                       <div className="text-center">
-                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2">— O que testar agora —</p>
+                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2">— TESTE MERCHANT —</p>
                          <p className="text-[10px] text-slate-400 italic px-4">
-                           Ao clicar nos botões K, L ou M, o sistema tentará abrir o App InfinitePay para aceitar **Aproximação (Tap)**. A opção G é o link web que funcionou antes.
+                           N, O e P usam o esquema oficial para integrações comerciais no iOS. O valor é enviado em centavos.
                          </p>
                       </div>
 
