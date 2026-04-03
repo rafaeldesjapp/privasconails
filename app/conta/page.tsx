@@ -91,7 +91,11 @@ function ContaContent() {
     link_c: string,
     link_d: string,
     link_e: string,
-    link_f: string
+    link_f: string,
+    link_g: string,
+    link_h: string,
+    link_i: string,
+    link_j: string
   } | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [showManualSteps, setShowManualSteps] = useState(false);
@@ -112,6 +116,20 @@ function ContaContent() {
         const linkD = `cloudwalk-merchant://vender?amount=${amountCents}`;
         const linkE = `infinitepay://vender?amount=${amountCents}`;
         const linkF = `https://link.infinitepay.io/${userHandle}/tap-to-pay?amount=${total.toFixed(2)}`;
+        
+        // --- Novas Opções Reais (G-J) ---
+        const baseUrl = window.location.origin;
+        const billingIds = billingItems.map(b => b.id).join(',');
+        const callbackUrl = `${baseUrl}/api/pagamentos/infinitepay-callback?ids=${billingIds}`;
+        
+        // Link G: Universal Link com Virgula
+        const linkG = `https://pay.infinitepay.io/${userHandle}/${amountStr}`;
+        // Link H: Deep Link Nativo InfiniteTap (centavos + callback)
+        const linkH = `infinitepay://infinitetap?amount=${amountCents}&callback=${encodeURIComponent(callbackUrl)}`;
+        // Link I: Deep Link CloudWalk (centavos + callback)
+        const linkI = `cloudwalk://pay?amount=${amountCents}&callback=${encodeURIComponent(callbackUrl)}`;
+        // Link J: Formato /p/ (comum em alguns casos)
+        const linkJ = `https://link.infinitepay.io/p/${userHandle}/${amountStr}`;
 
         setSmartPayData({ 
             init_point: '', 
@@ -121,7 +139,11 @@ function ContaContent() {
             link_c: linkC,
             link_d: linkD,
             link_e: linkE,
-            link_f: linkF
+            link_f: linkF,
+            link_g: linkG,
+            link_h: linkH,
+            link_i: linkI,
+            link_j: linkJ
         });
         
         setShowSmartModal(true);
@@ -1081,6 +1103,32 @@ function ContaContent() {
                           className="py-4 bg-emerald-500 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
                         >
                           POSSIB. F
+                        </button>
+                        
+                        {/* Novas Opções Sugeridas */}
+                        <button 
+                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_g); }}
+                          className="py-4 bg-rose-600 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
+                        >
+                          POSSIB. G (Pay)
+                        </button>
+                        <button 
+                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_h); }}
+                          className="py-4 bg-rose-500 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
+                        >
+                          POSSIB. H (Tap)
+                        </button>
+                        <button 
+                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_i); }}
+                          className="py-4 bg-cyan-600 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
+                        >
+                          POSSIB. I (Cloud)
+                        </button>
+                        <button 
+                          onClick={() => { if (smartPayData) window.location.assign(smartPayData.link_j); }}
+                          className="py-4 bg-cyan-500 text-white font-bold rounded-2xl shadow-md active:scale-95 text-sm"
+                        >
+                          POSSIB. J (/p/)
                         </button>
                       </div>
 
