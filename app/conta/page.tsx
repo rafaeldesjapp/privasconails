@@ -23,7 +23,9 @@ import {
   CheckCircle2,
   Wallet as WalletIcon,
   Smartphone,
-  History
+  History,
+  Zap,
+  RotateCcw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { initMercadoPago, Payment, Wallet } from '@mercadopago/sdk-react';
@@ -84,14 +86,19 @@ function ContaContent() {
   const [isPointLoading, setIsPointLoading] = useState(false);
   const [showSmartModal, setShowSmartModal] = useState(false);
   const [smartPayData, setSmartPayData] = useState<{
-    init_point: string, 
-    id: string, 
-    link_a: string,  // Universal Link com amount+result_url
-    link_b: string,  // Universal Link com amount+callback_url
-    link_c: string,  // Universal Link com amount+redirect_url
-    link_d: string,  // Universal Link só com amount (simples)
-    link_e: string,  // Link web fallback
+    amountDisplay: string;      // "R$ 1,00"
+    amountRaw: string;          // "1,00" (para colar no campo)
+    amountCents: number;        // 100 (centavos)
+    detectedOS: 'ios' | 'android' | 'unknown';
+    // Links baseados no novo path /infinitetap-app
+    universalLink: string;      // https://app.infinitepay.io/infinitetap-app?...
+    // Android: intents específicos para abertura forçada
+    android_intent_a: string;
+    android_intent_b: string;
+    android_intent_c: string;
   } | null>(null);
+  const [showOverrideOS, setShowOverrideOS] = useState(false); // Alternar visualização entre iOS/Android se falhar
+
   const [isPolling, setIsPolling] = useState(false);
   const [showManualSteps, setShowManualSteps] = useState(false);
 
@@ -100,43 +107,47 @@ function ContaContent() {
         setIsPointLoading(true);
         setShowManualSteps(false);
         
-        const amountStr = total.toFixed(2).replace('.', ',');
+        const amountDisplay = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const amountRaw = total.toFixed(2).replace('.', ',');
         const amountCents = Math.round(total * 100);
-        const userHandle = 'priscila-de-5h9';
         
         const baseUrl = window.location.origin;
         const billingIds = billingItems.map(b => b.id).join(',');
         const resultUrl = `${baseUrl}/conta?payment=success&ids=${billingIds}`;
-        const encodedResultUrl = encodeURIComponent(resultUrl);
+        const encodedResult = encodeURIComponent(resultUrl);
         
-        // ── UNIVERSAL LINKS (https) — Único método que funciona no iOS sem SDK nativo ──
-        // Path descoberto via apple-app-site-association: /infinitetap-app
+        // ── DETECÇÃO DE SISTEMA ────────────────────────────────────────────────
+        const ua = navigator.userAgent.toLowerCase();
+        let detectedOS: 'ios' | 'android' | 'unknown' = 'unknown';
+        if (/iphone|ipad|ipod/.test(ua)) detectedOS = 'ios';
+        else if (/android/.test(ua)) detectedOS = 'android';
+
+        // ── LINKS UNIFICADOS (/infinitetap-app) ───────────────────────────────
+        // Este path foi descoberto como o ponto oficial de entrada do Tap to Pay
         const tapBase = `https://app.infinitepay.io/infinitetap-app`;
+        const universalLink = `${tapBase}?amount=${amountCents}&result_url=${encodedResult}`;
         
-        // Variação A: amount em centavos + result_url
-        const linkA = `${tapBase}?amount=${amountCents}&result_url=${encodedResultUrl}`;
+        // ── ANDROID: Intensificados (Intents) ──────────────────────────────────
+        const pkg = 'io.cloudwalk.infinitepaydash';
+        const fallback = encodeURIComponent('https://play.google.com/store/apps/details?id=' + pkg);
         
-        // Variação B: amount em centavos + callback_url
-        const linkB = `${tapBase}?amount=${amountCents}&callback_url=${encodedResultUrl}`;
-        
-        // Variação C: amount em centavos + redirect_url + order_id
-        const linkC = `${tapBase}?amount=${amountCents}&redirect_url=${encodedResultUrl}&order_id=${billingIds}`;
-        
-        // Variação D: amount simples (sem parâmetros extras)
-        const linkD = `${tapBase}?amount=${amountCents}`;
-        
-        // Fallback: Link web público com valor
-        const linkE = `https://pay.infinitepay.io/${userHandle}/${amountStr}`;
+        const android_intent_a = `intent://infinitetap-app?amount=${amountCents}&result_url=${encodedResult}#Intent;scheme=https;package=${pkg};S.browser_fallback_url=${fallback};end;`;
+        const android_intent_b = `intent://vender?amount=${amountCents}&result_url=${encodedResult}#Intent;scheme=infinitepay;package=${pkg};S.browser_fallback_url=${fallback};end;`;
+        const android_intent_c = `intent://charge?amount=${amountCents}&result_url=${encodedResult}#Intent;scheme=infinitepay;package=${pkg};S.browser_fallback_url=${fallback};end;`;
 
         setSmartPayData({ 
-            init_point: '', 
-            id: 'infinitepay', 
-            link_a: linkA,
-            link_b: linkB,
-            link_c: linkC,
-            link_d: linkD,
-            link_e: linkE,
+            amountDisplay,
+            amountRaw,
+            amountCents,
+            detectedOS,
+            universalLink,
+            android_intent_a,
+            android_intent_b,
+            android_intent_c,
         });
+        
+        setShowOverrideOS(false); // Resetar se abrir novo modal
+
         
         setShowSmartModal(true);
         startPolling(); 
@@ -1025,140 +1036,156 @@ function ContaContent() {
           </div>
         )}
       </AnimatePresence>
-      {/* Modal de Pagamento Inteligente (QR / NFC) */}
+      {/* Modal de Pagamento Inteligente — iOS/Android */}
       <AnimatePresence>
         {showSmartModal && smartPayData && (
-          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-300 border-t-8 border-indigo-600">
-              <div className="p-6 text-center relative">
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-2 overflow-y-auto">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-300 border-t-8 border-indigo-600 my-4">
+
+              {/* Header */}
+              <div className="p-5 text-center relative border-b border-slate-100">
                 <button 
                   onClick={() => setShowSmartModal(false)}
-                  className="absolute right-4 top-0 hover:bg-slate-100 p-2 rounded-full transition-colors text-slate-400"
+                  className="absolute right-4 top-4 hover:bg-slate-100 p-1.5 rounded-full transition-colors text-slate-400"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
-                
-                <div className="w-20 h-20 mx-auto mb-4 bg-indigo-50 rounded-2xl flex items-center justify-center p-4 border border-indigo-100">
-                  <svg viewBox="0 0 24 24" className="text-indigo-600 w-full h-full fill-current">
-                    <path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 18H7V4h10v16zm-5-1c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zM8 6h8v2H8V6z" />
-                  </svg>
+                <div className="w-12 h-12 mx-auto mb-2 bg-indigo-50 rounded-2xl flex items-center justify-center border border-indigo-100">
+                  <Smartphone className="w-6 h-6 text-indigo-600" />
                 </div>
-                
-                <h3 className="text-2xl font-black text-slate-800">InfinitePay</h3>
-                <p className="text-slate-500 text-sm">Recebimento por Aproximação</p>
+                <h3 className="text-lg font-black text-slate-800">Receber por Aproximação</h3>
+                <p className="text-slate-400 text-xs">InfinitePay — NFC / Tap to Pay</p>
               </div>
-              <div className="px-8 pb-8 text-center">
-                <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <span className="text-slate-400 text-[10px] font-bold uppercase block mb-1 tracking-widest">Valor da Comanda</span>
-                  <span className="text-4xl font-black text-indigo-600">
-                    {total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </span>
+
+              {/* Valor */}
+              <div className="px-5 pt-4 pb-2">
+                <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-2xl p-4">
+                  <div className="flex-1">
+                    <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest">Valor a cobrar</p>
+                    <p className="text-3xl font-black text-indigo-700">{smartPayData.amountDisplay}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(smartPayData.amountRaw);
+                      alert(`✅ "${smartPayData.amountRaw}" copiado! Cole no campo de valor do InfinitePay.`);
+                    }}
+                    className="px-4 py-2.5 bg-indigo-600 text-white font-black rounded-xl text-xs active:scale-95 transition-all shadow-sm"
+                  >
+                    📋 Copiar
+                  </button>
                 </div>
+              </div>
 
-                <>
-                  {!showManualSteps ? (
-                    <div className="space-y-3">
-                      {/* PASSO 1: Copiar o valor */}
-                      <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 text-left">
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">1</div>
-                          <p className="text-sm font-bold text-slate-700">Copie o valor</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <div className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-indigo-700 font-black text-lg text-center">
-                            {total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                          </div>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(total.toFixed(2).replace('.', ','));
-                              alert('Valor copiado! Cole no InfinitePay.');
-                            }}
-                            className="px-4 bg-indigo-600 text-white font-black rounded-xl text-xs shrink-0 active:scale-95 transition-all"
-                          >
-                            Copiar
-                          </button>
-                        </div>
+              <div className="px-5 pb-5 space-y-4">
+
+                {/* 1. SEÇÃO ANDROID (Auto-expandida se detectado) */}
+                {(smartPayData.detectedOS === 'android' || showOverrideOS) && (
+                  <div className="rounded-2xl border-2 border-emerald-500 bg-emerald-50 overflow-hidden shadow-sm animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600">
+                      <div className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center text-xs">🤖</div>
+                      <p className="text-white font-black text-sm uppercase tracking-tighter">ANDROID — AUTOMÁTICO</p>
+                      <div className="ml-auto flex items-center gap-1.5 bg-white/20 px-2 py-0.5 rounded-full">
+                         <div className="w-1.5 h-1.5 bg-emerald-300 rounded-full animate-pulse" />
+                         <span className="text-[9px] text-white font-bold">RECOMENDADO</span>
                       </div>
-
-                      {/* PASSO 2: Abrir InfinitePay */}
-                      <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 text-left">
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">2</div>
-                          <p className="text-sm font-bold text-slate-700">Abra o InfinitePay e faça a venda</p>
-                        </div>
-                        {smartPayData && (
-                          <a
-                            href={smartPayData.link_e}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full py-3 bg-indigo-600 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md"
-                            style={{ display: 'flex' }}
-                          >
-                            <Smartphone className="w-4 h-4" />
-                            Abrir InfinitePay
-                          </a>
-                        )}
-                        <p className="text-[10px] text-slate-400 mt-2 text-center italic">
-                          Vender → Cole o valor → Receber Agora → Aproximar cartão
-                        </p>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      <button
+                        onClick={() => window.location.assign(smartPayData.android_intent_a)}
+                        className="w-full py-4 bg-emerald-500 text-white font-black rounded-xl text-base flex items-center justify-center gap-3 active:scale-95 transition-all shadow-md"
+                      >
+                        <Zap className="w-5 h-5 fill-current" />
+                        ABRIR APP AGORA
+                      </button>
+                      <div className="grid grid-cols-2 gap-2">
+                         <button 
+                           onClick={() => window.location.assign(smartPayData.android_intent_b)}
+                           className="py-2.5 bg-emerald-100 text-emerald-700 font-bold rounded-xl text-[10px] border border-emerald-200 active:scale-95 transition-all"
+                         >
+                           Alternativa B
+                         </button>
+                         <button 
+                           onClick={() => window.location.assign(smartPayData.android_intent_c)}
+                           className="py-2.5 bg-emerald-100 text-emerald-700 font-bold rounded-xl text-[10px] border border-emerald-200 active:scale-95 transition-all"
+                         >
+                           Alternativa C
+                         </button>
                       </div>
+                      <p className="text-[10px] text-emerald-600/70 italic text-center font-medium">
+                        Se o app não abrir, tente os botões alternativos acima.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
-                      {/* PASSO 3: Confirmar */}
-                      <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 text-left">
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className="w-6 h-6 bg-emerald-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">3</div>
-                          <p className="text-sm font-bold text-slate-700">Após a batida do cartão, confirme aqui</p>
+                {/* 2. SEÇÃO iOS (Auto-expandida se detectado) */}
+                {(smartPayData.detectedOS === 'ios' || (!showOverrideOS && smartPayData.detectedOS === 'unknown') || (showOverrideOS && smartPayData.detectedOS === 'android')) && (
+                  <div className="rounded-2xl border-2 border-slate-200 bg-slate-50 overflow-hidden shadow-sm animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-800">
+                      <div className="w-5 h-5 bg-white/10 rounded-full flex items-center justify-center text-xs">🍎</div>
+                      <p className="text-white font-black text-sm uppercase tracking-tighter">iPHONE (iOS) — MANUAL</p>
+                      <div className="ml-auto bg-white/10 px-2 py-0.5 rounded-full">
+                         <span className="text-[9px] text-slate-300 font-bold uppercase tracking-widest leading-none">Safari Block</span>
+                      </div>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      <div className="space-y-2 text-slate-600">
+                        <div className="flex gap-2.5 items-start">
+                          <div className="w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">1</div>
+                          <p className="text-xs font-medium">Copie o valor acima usando o botão "📋 Copiar"</p>
                         </div>
-                        <button 
-                          onClick={handleManualConfirm}
-                          className="w-full py-4 bg-emerald-500 text-white font-bold rounded-xl flex items-center justify-center gap-3 hover:bg-emerald-600 transition-all shadow-md active:scale-95"
-                        >
-                          <CheckCircle2 className="w-5 h-5" />
-                          CONFIRMAR RECEBIMENTO
-                        </button>
+                        <div className="flex gap-2.5 items-start">
+                          <div className="w-5 h-5 bg-slate-700 text-white rounded-full flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">2</div>
+                          <p className="text-xs font-medium">Toque no botão abaixo para tentar abrir o app:</p>
+                        </div>
                       </div>
                       
-                      <button 
-                        onClick={() => setShowManualSteps(true)}
-                        className="w-full py-2 text-slate-400 font-bold hover:text-slate-600 transition-colors text-[10px] uppercase tracking-widest"
+                      <a
+                        href={smartPayData.universalLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-3.5 bg-slate-800 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md"
+                        style={{ display: 'flex' }}
                       >
-                        Precisa de ajuda?
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 text-left space-y-4 animate-in slide-in-from-right-4">
-                      <h4 className="font-black text-indigo-900 text-base mb-2">Siga estes passos:</h4>
-                      <div className="space-y-3">
-                        <div className="flex gap-4">
-                          <div className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</div>
-                          <p className="text-sm text-indigo-800 leading-snug">Abra o aplicativo <b>InfinitePay</b> no seu celular.</p>
-                        </div>
-                        <div className="flex gap-4">
-                          <div className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</div>
-                          <p className="text-sm text-indigo-800 leading-snug">Toque em <b>'Vender'</b> e informe o valor de <b>{total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</b>.</p>
-                        </div>
-                        <div className="flex gap-4">
-                          <div className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">3</div>
-                          <p className="text-sm text-indigo-800 leading-snug">Clique em <b>'Receber Agora'</b> e peça para a cliente aproximar o cartão.</p>
-                        </div>
+                        <Smartphone className="w-4 h-4" />
+                        TENTAR ABRIR APP
+                      </a>
+                      
+                      <div className="p-2.5 bg-indigo-50 rounded-xl border border-indigo-100 flex items-start gap-2">
+                        <div className="w-4 h-4 shrink-0 text-indigo-500 mt-0.5">💡</div>
+                        <p className="text-[10px] text-indigo-700 leading-relaxed font-medium">
+                          Se cair no site: Feche, abra o app <span className="font-bold">InfinitePay</span> direto, toque em <span className="font-bold uppercase tracking-tighter">Vender → InfiniteTap</span> e cole o valor.
+                        </p>
                       </div>
-                      <button 
-                        onClick={() => setShowManualSteps(false)}
-                        className="w-full mt-4 py-3 bg-white text-indigo-600 font-black rounded-xl border border-indigo-200 text-xs uppercase tracking-widest"
-                      >
-                        Voltar
-                      </button>
                     </div>
-                  )}
-                </>
-
-                <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between opacity-50">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full" />
-                    <span className="text-[10px] font-bold text-slate-500 uppercase">InfinitePay Tap</span>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400">FLUXO MANUAL</span>
+                )}
+
+                {/* 3. BOTÃO DE CONFIRMAÇÃO (Sempre visível) */}
+                <div className="pt-2 border-t border-slate-100 space-y-3">
+                  <button 
+                    onClick={handleManualConfirm}
+                    className="w-full py-4.5 bg-emerald-500 text-white font-black rounded-2xl flex items-center justify-center gap-3 hover:bg-emerald-600 transition-all shadow-xl active:scale-95 text-lg"
+                  >
+                    <CheckCircle2 className="w-6 h-6" />
+                    CONFIRMAR RECEBIMENTO
+                  </button>
+
+                  <div className="flex items-center justify-between">
+                    <button 
+                      onClick={() => setShowOverrideOS(!showOverrideOS)}
+                      className="text-[10px] font-black text-slate-400 hover:text-indigo-500 uppercase tracking-widest transition-colors flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      {showOverrideOS ? 'Esconder outros sistemas' : 'Eu uso outro sistema (Android/iOS)'}
+                    </button>
+                    <div className="flex items-center gap-1.5 opacity-40">
+                      <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
+                      <span className="text-[9px] font-bold text-slate-500 uppercase">Automated v2.0</span>
+                    </div>
+                  </div>
                 </div>
+
               </div>
             </div>
           </div>
@@ -1167,3 +1194,4 @@ function ContaContent() {
     </div>
   );
 }
+
