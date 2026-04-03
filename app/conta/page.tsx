@@ -90,18 +90,13 @@ function ContaContent() {
     try {
         setIsPointLoading(true);
         
-        // 1. Gerar Links de Vendedor (Padrão e Alternativo para iOS)
-        const amountStr = total.toFixed(2);
-        const billingIdsArr = billingItems.map(b => b.id);
-        const billingIds = billingIdsArr.join(',');
-        const cleanDesc = `Nails_${total.toFixed(0)}`;
+        // 1. Converter Valor para Centavos (inteiros sem ponto p/ evitar erro no Safari)
+        const amountCents = Math.round(total * 100);
+        const cleanDesc = `Venda_Tap`;
         
-        // URL de Callback (simplificada para evitar erro de endereço no Safari)
-        const callbackUrl = encodeURIComponent(`https://privasconails.vercel.app/api/pagamentos/infinitepay-callback?ids=${billingIds}`);
-        
-        // Esquemas de URL
-        const infinitepayLink = `infinitepay://vender?amount=${amountStr}&description=${cleanDesc}&callback_url=${callbackUrl}`;
-        const cloudwalkLink = `cloudwalk://vender?amount=${amountStr}&description=${cleanDesc}&callback_url=${callbackUrl}`;
+        // Esquemas de URL ultra-simplificados
+        const infinitepayLink = `infinitepay://vender?amount=${amountCents}&description=${cleanDesc}`;
+        const cloudwalkLink = `cloudwalk://vender?amount=${amountCents}&description=${cleanDesc}`;
 
         setSmartPayData({ 
             init_point: '', 
