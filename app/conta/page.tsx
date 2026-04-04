@@ -403,13 +403,15 @@ function ContaContent() {
     const methodString = typeof overrideMethod === 'string' ? overrideMethod : 'dinheiro_caixa';
     if (!window.confirm('Confirmar baixa imediata desta comanda?')) return;
     try {
-      const updates = billingItems.map(b => ({
-         id: b.id,
-         status: 'concluido',
-         payment_method: methodString
-      }));
-      // Ideally an RPC or bulk upsert. Supabase `upsert` can work if we provide id cleanly.
-      const { error } = await supabase.from('agendamentos').upsert(updates);
+      const billingIds = billingItems.map(b => b.id);
+      const { error } = await supabase
+        .from('agendamentos')
+        .update({ 
+          status: 'concluido', 
+          payment_method: methodString 
+        })
+        .in('id', billingIds);
+
       if (error) throw error;
       
       const transacaoLog = {
@@ -909,7 +911,7 @@ function ContaContent() {
                           )}
                         >
                            <Smartphone className="w-5 h-5" />
-                           {isStaff ? (isPointLoading ? 'Gerando cobrança...' : 'VENDER COM INFINITY') : 'Vender com Infinity'}
+                           {isStaff ? (isPointLoading ? 'Gerando cobrança...' : 'RECEBER COM INFINITY') : 'Pagar com Infinity'}
                         </button>
                         
                         {isStaff && (
@@ -1053,7 +1055,7 @@ function ContaContent() {
                 <div className="w-12 h-12 mx-auto mb-2 bg-indigo-50 rounded-2xl flex items-center justify-center border border-indigo-100">
                   <Smartphone className="w-6 h-6 text-indigo-600" />
                 </div>
-                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter">VENDER COM INFINITY</h3>
+                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter">RECEBER COM INFINITY</h3>
                 <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Processo Manual Otimizado</p>
 
               </div>
