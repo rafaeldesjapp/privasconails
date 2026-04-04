@@ -740,16 +740,29 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                       className={cn(
                         "w-7 h-7 md:w-10 md:h-10 mx-auto rounded-full flex items-center justify-center text-xs md:text-sm font-medium transition-all relative font-[600]",
                         isSelected 
-                          ? "bg-gradient-to-br from-pink-500 to-orange-400 text-white shadow-md shadow-pink-500/30 scale-110" 
-                          : isHoliday ? "text-rose-600 bg-rose-50/70 border border-rose-100 font-bold" : "text-slate-600 hover:bg-pink-50",
-                        isThisDayBlocked && !isSelected && "bg-red-50 text-red-500 border border-red-200"
+                          ? (isThisDayBlocked 
+                              ? "bg-white border-2 border-rose-500 text-rose-600 shadow-md scale-110" 
+                              : "bg-gradient-to-br from-pink-500 to-orange-400 text-white shadow-md shadow-pink-500/30 scale-110")
+                          : (isHoliday 
+                              ? "text-rose-600 bg-amber-50 border border-amber-200 font-bold" 
+                              : isWeekend
+                                ? "text-slate-400 bg-slate-50 border border-slate-100"
+                                : isThisDayBlocked
+                                  ? "text-red-500 bg-indigo-50/50 border border-indigo-100"
+                                  : "text-slate-600 hover:bg-pink-50 font-bold"),
+                        isThisDayBlocked && !isSelected && "shadow-sm"
                       )}
                     >
-                      {format(day, 'd')}
+                      <span className="relative">
+                        {format(day, 'd')}
+                        {isHoliday && (
+                          <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-amber-500 rounded-full" />
+                        )}
+                      </span>
 
                       {/* Ícone de Cadeado Visível sempre se estiver bloqueado */}
                       {isThisDayBlocked && (
-                        <Lock className={cn("w-3 h-3 absolute -top-1 -right-1", isSelected ? "text-white" : "text-red-500")} />
+                        <Lock className={cn("w-3 h-3 absolute -top-1 -right-1", (isSelected && !isThisDayBlocked) ? "text-white" : "text-red-500")} />
                       )}
                     </button>
 
