@@ -308,7 +308,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
           const novosAgendamentos = targetTimes.map(t => ({
             user_id: copyModeSource.user_id,
             client_name: copyModeSource.client_name,
-            service: copyModeSource.service,
+            service: copyModeSource.service.includes(' (Continuação)') ? copyModeSource.service : `${copyModeSource.service} (Continuação)`,
             date: copyModeSource.date,
             time: t,
             status: copyModeSource.status
@@ -325,6 +325,26 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       }
     }
     setCopyModeSource(null);
+  };
+
+  const executeMove = async (sourceAge: any, targetTime: string) => {
+    if (agendamentos.some(a => a.time === targetTime)) {
+      alert("O horário de destino já está ocupado!");
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('agendamentos')
+        .update({ time: targetTime })
+        .eq('id', sourceAge.id);
+        
+      if (error) throw error;
+      
+      fetchAgendamentos(currentDate);
+    } catch(err: any) {
+      alert('Erro ao mover agendamento: ' + err.message);
+    }
   };
 
   const handleNextDay = () => {
@@ -871,7 +891,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
             <div className="hidden md:block bg-orange-50/50 rounded-2xl p-6 border border-orange-100 border-dashed">
               <h3 className="font-bold text-slate-800 mb-2">Dica de Produtividade</h3>
               <p className="text-sm text-slate-600">
-                Pressione a bolinha <GripVertical className="inline w-4 h-4 text-slate-400" /> celular ou computador por 3 segundos para clonar compromissos. Depois pressione o destino por 3 segundos para colar!
+                Pressione a bolinha <GripVertical className="inline w-4 h-4 text-slate-400" /> celular ou computador por 2 segundos para clonar compromissos. Depois pressione o destino por 2 segundos para colar! E para mover, basta arrastá-lo para cima ou para baixo e soltar.
               </p>
             </div>
           </div>
@@ -970,7 +990,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                   <div className="mx-2 mb-6 p-4 bg-blue-50 border-2 border-blue-200 border-dashed rounded-2xl flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-500">
                     <div>
                       <h4 className="font-bold text-blue-800 text-sm flex items-center gap-2">Modo Clonagem Ativo</h4>
-                      <p className="text-xs text-blue-700/80">Pressione e segure por 3s no horário de destino para colar: <strong>{copyModeSource.service}</strong></p>
+                      <p className="text-xs text-blue-700/80">Pressione e segure por 2s no horário de destino para colar: <strong>{copyModeSource.service}</strong></p>
                     </div>
                     <button 
                       onClick={() => setCopyModeSource(null)}
@@ -998,10 +1018,20 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                           <div 
                             key={time} 
                             className="group relative min-h-[40px] flex items-center gap-2 md:gap-4 transition-all hover:bg-white/50 -mx-2 md:-mx-4 px-2 md:px-4 rounded-lg"
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              try {
+                                const sourceAge = JSON.parse(e.dataTransfer.getData('text/plain'));
+                                if (sourceAge && sourceAge.id) {
+                                  executeMove(sourceAge, time);
+                                }
+                              } catch(err) {}
+                            }}
                             onMouseDown={() => {
                               if (isAdminView && copyModeSource) {
                                 clearPressTimer();
-                                longPressTimer.current = setTimeout(() => { executeDrop(time); }, 3000);
+                                longPressTimer.current = setTimeout(() => { executeDrop(time); }, 2000);
                               }
                             }}
                             onMouseUp={clearPressTimer}
@@ -1009,7 +1039,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                             onTouchStart={() => {
                               if (isAdminView && copyModeSource) {
                                 clearPressTimer();
-                                longPressTimer.current = setTimeout(() => { executeDrop(time); }, 3000);
+                                longPressTimer.current = setTimeout(() => { executeDrop(time); }, 2000);
                               }
                             }}
                             onTouchEnd={clearPressTimer}
@@ -1034,7 +1064,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                           longPressTimer.current = setTimeout(() => { 
                                             if (navigator.vibrate) navigator.vibrate(200);
                                             setCopyModeSource(age); 
-                                          }, 3000);
+                                          }, 2000);
                                         }}
                                         onTouchStart={(e) => {
                                           e.stopPropagation();
@@ -1042,7 +1072,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                           longPressTimer.current = setTimeout(() => { 
                                             if (navigator.vibrate) navigator.vibrate(200);
                                             setCopyModeSource(age); 
-                                          }, 3000);
+                                          }, 2000);
                                         }}
                                       >
                                         <GripVertical className="w-3.5 h-3.5" />
@@ -1057,10 +1087,15 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                   )}
                                 </div>
                               ) : isOccupied ? (
-                                <div className={cn(
+                                <div 
+                                  draggable={isAdminView || isMine}
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.setData('text/plain', JSON.stringify(age));
+                                  }}
+                                  className={cn(
                                   "flex-1 flex items-center justify-between px-3 py-1 rounded-lg ml-2 mb-1",
                                   age.status === 'concluido' ? 'bg-[url("https://www.transparenttextures.com/patterns/diagonal-stripes.png")] bg-green-100 text-green-700 font-bold border border-green-200' :
-                                  isMine || isAdminView ? 'bg-gradient-to-r from-rose-100 to-orange-100 text-rose-700 shadow-sm border border-rose-200' : 'bg-slate-100 text-slate-500 line-through'
+                                  isMine || isAdminView ? 'bg-gradient-to-r from-rose-100 to-orange-100 text-rose-700 shadow-sm border border-rose-200 cursor-move' : 'bg-slate-100 text-slate-500 line-through'
                                 )}>
                                   {editingId === age.id ? (
                                     <div className="flex-1 flex flex-col gap-1 mr-2 mt-1">
@@ -1145,7 +1180,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                               longPressTimer.current = setTimeout(() => { 
                                                 if (navigator.vibrate) navigator.vibrate(200);
                                                 setCopyModeSource(age); 
-                                              }, 3000);
+                                              }, 2000);
                                             }}
                                             onTouchStart={(e) => { 
                                               e.stopPropagation();
@@ -1153,7 +1188,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                               longPressTimer.current = setTimeout(() => { 
                                                 if (navigator.vibrate) navigator.vibrate(200);
                                                 setCopyModeSource(age); 
-                                              }, 3000);
+                                              }, 2000);
                                             }}
                                           >
                                             <GripVertical className="w-4 h-4" />

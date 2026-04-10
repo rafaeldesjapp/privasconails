@@ -80,7 +80,9 @@ export default function PaymentModal({ isOpen, onClose, serviceName, amount, app
              }
            }
            
-           if (partPrice === 0 && Array.isArray(parts) && parts.length === 1) {
+           if (searchName.includes('(Continuação)')) {
+             partPrice = 0;
+           } else if (partPrice === 0 && Array.isArray(parts) && parts.length === 1) {
              partPrice = amount || 50;
            } else if (partPrice === 0) {
              partPrice = 50;
