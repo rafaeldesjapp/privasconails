@@ -122,7 +122,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
         
         {/* Info do Usuário e Foto */}
         <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block">
+          <div className="text-right">
             <p className="text-sm font-bold text-slate-700 leading-none mb-1">
               {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário'}
             </p>

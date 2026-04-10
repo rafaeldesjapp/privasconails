@@ -64,8 +64,10 @@ const Auth = () => {
           return;
         }
         
+        const signUpEmail = email.trim() ? email.trim() : `${username.toLowerCase()}@privasconails.app`;
+
         const { data, error } = await supabase.auth.signUp({
-          email,
+          email: signUpEmail,
           password,
           options: {
             data: {
@@ -176,10 +178,11 @@ const Auth = () => {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">E-mail</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">
+                  E-mail <span className="text-slate-400 normal-case font-normal ml-1">(não obrigatório)</span>
+                </label>
                 <input 
                   type="email"
-                  required
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
                   placeholder="seu@email.com"
                   value={email}
