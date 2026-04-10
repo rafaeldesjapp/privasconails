@@ -80,6 +80,54 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   const [checkoutDuration, setCheckoutDuration] = useState<string>('60'); 
   const [checkoutPayment, setCheckoutPayment] = useState<string>('Pix');
 
+  // Estados para Novo Cliente Modal
+  const [showNewClientModal, setShowNewClientModal] = useState(false);
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientPhone, setNewClientPhone] = useState('');
+  const [isCreatingClient, setIsCreatingClient] = useState(false);
+
+  const handleCreateNewClient = async () => {
+    if (!newClientName.trim()) {
+      alert("O nome é obrigatório!");
+      return;
+    }
+    setIsCreatingClient(true);
+    try {
+      const generatedUsername = `cliente_${Date.now()}`;
+      const generatedEmail = `${generatedUsername}@privasconails.app`;
+      const generatedPassword = `P${Date.now()}xyz!`; 
+      
+      const req = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: newClientName.trim(),
+          phone: newClientPhone.replace(/\D/g, ''),
+          email: generatedEmail,
+          username: generatedUsername,
+          password: generatedPassword,
+          role: 'cliente'
+        })
+      });
+
+      const res = await req.json();
+      if (!req.ok) throw new Error(res.error || 'Erro ao criar cliente');
+
+      const newClient = { id: res.user.id, full_name: newClientName.trim() };
+      setClientsList(prev => [...prev, newClient].sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '')));
+      
+      setSelectedClientId(res.user.id);
+      setShowNewClientModal(false);
+      setNewClientName('');
+      setNewClientPhone('');
+    } catch (err: any) {
+      console.error(err);
+      alert('Erro ao criar cliente: ' + err.message);
+    } finally {
+      setIsCreatingClient(false);
+    }
+  };
+
   const isDayBlocked = (() => {
     const dateStr = format(currentDate, 'yyyy-MM-dd');
     const adminRecord = agendamentos.find(a => a.time === 'ALL' && a.date === dateStr);
@@ -1166,8 +1214,16 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                           <select 
                                             className="flex-1 border border-slate-200 rounded px-2 py-1 outline-none text-xs text-slate-600 bg-slate-50"
                                             value={selectedClientId}
-                                            onChange={e => setSelectedClientId(e.target.value)}
+                                            onChange={e => {
+                                              if (e.target.value === 'NEW_CLIENT') {
+                                                 setShowNewClientModal(true);
+                                                 setSelectedClientId('');
+                                              } else {
+                                                setSelectedClientId(e.target.value);
+                                              }
+                                            }}
                                           >
+                                            <option value="NEW_CLIENT">(Criar Novo Cliente)</option>
                                             <option value="">(Reservar para Mim)</option>
                                             {clientsList.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
                                           </select>
@@ -1308,6 +1364,62 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
           </div>
         </div>
       )}
+
+      {/* Modal de Confirmação de Feriado (Auditoria) */}
+      <AnimatePresence>
+        {showNewClientModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 relative border border-slate-100 font-sans"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-rose-500" />
+                  Novo Cliente
+                </h3>
+                <button onClick={() => setShowNewClientModal(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Nome Completo *</label>
+                  <input 
+                    type="text"
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none text-sm text-slate-700 focus:ring-2 focus:ring-rose-500/20"
+                    placeholder="Nome do cliente..."
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Celular (Opcional)</label>
+                  <input 
+                    type="text"
+                    value={newClientPhone}
+                    onChange={(e) => setNewClientPhone(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none text-sm text-slate-700 focus:ring-2 focus:ring-rose-500/20"
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+              </div>
+
+              <button 
+                onClick={handleCreateNewClient}
+                disabled={isCreatingClient}
+                className="w-full bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl shadow-md transition-all flex justify-center items-center"
+              >
+                {isCreatingClient ? 'Criando...' : 'Salvar Novo Cliente'}
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Modal de Confirmação de Feriado (Auditoria) */}
       <AnimatePresence>
