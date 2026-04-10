@@ -54,10 +54,9 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   const [blockedDays, setBlockedDays] = useState<{id: string, date: string, status: string}[]>([]); 
   const [holidayConfirm, setHolidayConfirm] = useState<{isOpen: boolean, date: Date | null}>({ isOpen: false, date: null });
 
-  // Estados do Drag-to-Fill
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragSource, setDragSource] = useState<Agendamento | null>(null);
-  const [dragCurrentTime, setDragCurrentTime] = useState<string | null>(null);
+  // Estados do Multi-Select (Long Press Copy)
+  const [copyModeSource, setCopyModeSource] = useState<Agendamento | null>(null);
+  const longPressTimer = React.useRef<NodeJS.Timeout | null>(null);
 
   // Estados de Feriados
   const [holidays, setHolidays] = useState<{date: string, name: string, type: string}[]>([]);
@@ -283,61 +282,50 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
     fetchBlockedDays(currentDate);
   }, [getMonth(currentDate), getYear(currentDate)]);
 
-  // Listener Global para o fim do Arrasto (Drag-to-Fill)
-  useEffect(() => {
-    const handleMouseUp = async () => {
-      if (isDragging && dragSource && dragCurrentTime) {
-        const sIdx = fullDayTimeSlots.indexOf(dragSource.time);
-        const cIdx = fullDayTimeSlots.indexOf(dragCurrentTime);
+  const clearPressTimer = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  };
+
+  const executeDrop = async (targetTime: string) => {
+    if (!copyModeSource) return;
+    
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
         
-        if (sIdx !== -1 && cIdx !== -1 && sIdx !== cIdx) {
-          const start = Math.min(sIdx, cIdx);
-          const end = Math.max(sIdx, cIdx);
-          const times = fullDayTimeSlots.slice(start, end + 1);
+    const sIdx = fullDayTimeSlots.indexOf(copyModeSource.time);
+    const cIdx = fullDayTimeSlots.indexOf(targetTime);
+    
+    if (sIdx !== -1 && cIdx !== -1 && sIdx !== cIdx) {
+      const start = Math.min(sIdx, cIdx);
+      const end = Math.max(sIdx, cIdx);
+      const times = fullDayTimeSlots.slice(start, end + 1);
 
-          // Pular ocupados e a própria origem (filtro anti-sobrescrita)
-          const targetTimes = times.filter(t => 
-            t !== dragSource.time && !agendamentos.some(a => a.time === t)
-          );
+      const targetTimes = times.filter(t => 
+        t !== copyModeSource.time && !agendamentos.some(a => a.time === t)
+      );
 
-          if (targetTimes.length > 0) {
-            try {
-              const novosAgendamentos = targetTimes.map(t => ({
-                user_id: dragSource.user_id,
-                client_name: dragSource.client_name,
-                service: dragSource.service,
-                date: dragSource.date,
-                time: t,
-                status: dragSource.status
-              }));
+      if (targetTimes.length > 0) {
+        try {
+          const novosAgendamentos = targetTimes.map(t => ({
+            user_id: copyModeSource.user_id,
+            client_name: copyModeSource.client_name,
+            service: copyModeSource.service,
+            date: copyModeSource.date,
+            time: t,
+            status: copyModeSource.status
+          }));
 
-              const { error } = await supabase.from('agendamentos').insert(novosAgendamentos);
-              if (error) throw error;
-              
-              fetchAgendamentos(currentDate);
-              fetchBlockedDays(currentDate);
-            } catch (err: any) {
-              alert('Erro ao colar blocos arrastados: ' + err.message);
-            }
-          }
+          const { error } = await supabase.from('agendamentos').insert(novosAgendamentos);
+          if (error) throw error;
+          
+          fetchAgendamentos(currentDate);
+          fetchBlockedDays(currentDate);
+        } catch (err: any) {
+          alert('Erro ao colar blocos: ' + err.message);
         }
       }
-      setIsDragging(false);
-      setDragSource(null);
-      setDragCurrentTime(null);
-    };
-
-    if (isDragging) {
-      window.addEventListener('mouseup', handleMouseUp);
-      // Fallback para mobile
-      window.addEventListener('touchend', handleMouseUp);
     }
-    
-    return () => {
-      window.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('touchend', handleMouseUp);
-    };
-  }, [isDragging, dragSource, dragCurrentTime, agendamentos, currentDate]);
+    setCopyModeSource(null);
+  };
 
   const handleNextDay = () => {
     setDirection(1);
@@ -883,7 +871,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
             <div className="hidden md:block bg-orange-50/50 rounded-2xl p-6 border border-orange-100 border-dashed">
               <h3 className="font-bold text-slate-800 mb-2">Dica de Produtividade</h3>
               <p className="text-sm text-slate-600">
-                Pressione a bolinha <GripVertical className="inline w-4 h-4 text-slate-400" /> ao lado de qualquer compromisso ou bloqueio e arraste para os horários vizinhos para multiplicar sua ação imediatamente!
+                Pressione a bolinha <GripVertical className="inline w-4 h-4 text-slate-400" /> celular ou computador por 3 segundos para clonar compromissos. Depois pressione o destino por 3 segundos para colar!
               </p>
             </div>
           </div>
@@ -978,6 +966,21 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                   </div>
                 )}
 
+                {copyModeSource && (
+                  <div className="mx-2 mb-6 p-4 bg-blue-50 border-2 border-blue-200 border-dashed rounded-2xl flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-500">
+                    <div>
+                      <h4 className="font-bold text-blue-800 text-sm flex items-center gap-2">Modo Clonagem Ativo</h4>
+                      <p className="text-xs text-blue-700/80">Pressione e segure por 3s no horário de destino para colar: <strong>{copyModeSource.service}</strong></p>
+                    </div>
+                    <button 
+                      onClick={() => setCopyModeSource(null)}
+                      className="bg-white text-blue-600 px-3 py-1.5 rounded-lg text-xs font-bold border border-blue-200 hover:bg-blue-100 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
+
                 <div className="space-y-[1px] pb-24">
                   {loading ? (
                     <div className="flex justify-center py-12">
@@ -991,32 +994,26 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                         const isMine = age?.user_id === user?.id;
                         const isSelected = selectedSlot === time;
 
-                        // Drag logic visual tracking
-                        const isPreview = isDragging && dragSource && dragCurrentTime && (() => {
-                          const tIdx = fullDayTimeSlots.indexOf(time);
-                          const sIdx = fullDayTimeSlots.indexOf(dragSource.time);
-                          const cIdx = fullDayTimeSlots.indexOf(dragCurrentTime);
-                          return tIdx >= Math.min(sIdx, cIdx) && tIdx <= Math.max(sIdx, cIdx);
-                        })();
-
-                        const showPreviewGhost = isPreview && !age; // Only preview on empty ones
-
                         return (
                           <div 
                             key={time} 
                             className="group relative min-h-[40px] flex items-center gap-2 md:gap-4 transition-all hover:bg-white/50 -mx-2 md:-mx-4 px-2 md:px-4 rounded-lg"
-                            onMouseEnter={() => {
-                              if (isDragging && isAdminView) setDragCurrentTime(time);
+                            onMouseDown={() => {
+                              if (isAdminView && copyModeSource) {
+                                clearPressTimer();
+                                longPressTimer.current = setTimeout(() => { executeDrop(time); }, 3000);
+                              }
                             }}
-                            // Captura touchmove no mobile
-                            onTouchMove={(e) => {
-                              if (!isDragging || !isAdminView) return;
-                              // Identifica o elemento sobre o qual o dedo está
-                              const touch = e.touches[0];
-                              const el = document.elementFromPoint(touch.clientX, touch.clientY);
-                              const targetTime = el?.getAttribute('data-time');
-                              if (targetTime) setDragCurrentTime(targetTime);
+                            onMouseUp={clearPressTimer}
+                            onMouseLeave={clearPressTimer}
+                            onTouchStart={() => {
+                              if (isAdminView && copyModeSource) {
+                                clearPressTimer();
+                                longPressTimer.current = setTimeout(() => { executeDrop(time); }, 3000);
+                              }
                             }}
+                            onTouchEnd={clearPressTimer}
+                            onTouchCancel={clearPressTimer}
                             data-time={time}
                           >
                             <div className="w-12 md:w-16 flex-shrink-0 text-right font-medium text-rose-400/80 group-hover:text-rose-600 group-hover:font-bold transition-all pt-1 text-xs md:text-base">
@@ -1024,23 +1021,29 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                             </div>
                             
                             <div className="flex-1 min-h-[40px] border-b border-rose-100/50 group-hover:border-rose-300 transition-colors flex items-center pr-2">
-                              {/* Fantasma do Drag */}
-                              {showPreviewGhost && (
-                                <div className="flex-1 flex items-center px-3 py-1 rounded-lg ml-2 mb-1 bg-rose-50 border-2 border-rose-300 border-dashed text-rose-400 opacity-60">
-                                  <span className="font-bold text-sm italic">
-                                    {(dragSource?.status === 'bloqueado') ? 'Bloqueando espaço...' : 'Pintando '+dragSource?.service}
-                                  </span>
-                                </div>
-                              )}
 
                               {isBlockedSlot ? (
                                 <div className="flex-1 flex items-center justify-between ml-2 bg-slate-50 text-slate-400 opacity-60 px-2 py-0.5 rounded italic">
                                   <div className="flex items-center gap-1">
                                     {isAdminView && (
                                       <div 
-                                        className="cursor-grab active:cursor-grabbing p-1 text-slate-300 hover:text-slate-500"
-                                        onMouseDown={() => { setIsDragging(true); setDragSource(age); setDragCurrentTime(time); }}
-                                        onTouchStart={() => { setIsDragging(true); setDragSource(age); setDragCurrentTime(time); }}
+                                        className={cn("p-1 transition-all rounded", copyModeSource?.id === age?.id ? "bg-blue-100 text-blue-600 shadow-sm" : "text-slate-300 hover:text-slate-500 cursor-pointer")}
+                                        onMouseDown={(e) => {
+                                          e.stopPropagation();
+                                          clearPressTimer();
+                                          longPressTimer.current = setTimeout(() => { 
+                                            if (navigator.vibrate) navigator.vibrate(200);
+                                            setCopyModeSource(age); 
+                                          }, 3000);
+                                        }}
+                                        onTouchStart={(e) => {
+                                          e.stopPropagation();
+                                          clearPressTimer();
+                                          longPressTimer.current = setTimeout(() => { 
+                                            if (navigator.vibrate) navigator.vibrate(200);
+                                            setCopyModeSource(age); 
+                                          }, 3000);
+                                        }}
                                       >
                                         <GripVertical className="w-3.5 h-3.5" />
                                       </div>
@@ -1135,16 +1138,23 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                       <div className="flex items-center gap-1">
                                         {isAdminView && (
                                           <div 
-                                            className="cursor-grab active:cursor-grabbing p-1 -ml-2 text-rose-300 hover:text-rose-500 opacity-60 hover:opacity-100 hover:scale-110 transition-all"
-                                            onMouseDown={() => { setIsDragging(true); setDragSource(age); setDragCurrentTime(time); }}
-                                            onTouchStart={(e) => { 
-                                              // Impede o scroll no celular ao arrastar a alça
-                                              document.body.style.overflow = 'hidden';
-                                              setIsDragging(true); 
-                                              setDragSource(age); 
-                                              setDragCurrentTime(time); 
+                                            className={cn("p-1 -ml-2 transition-all rounded text-rose-300 hover:text-rose-500", copyModeSource?.id === age?.id ? "bg-blue-100 text-blue-600 shadow-sm opacity-100" : "opacity-60 hover:opacity-100 hover:scale-110 cursor-pointer")}
+                                            onMouseDown={(e) => {
+                                              e.stopPropagation();
+                                              clearPressTimer();
+                                              longPressTimer.current = setTimeout(() => { 
+                                                if (navigator.vibrate) navigator.vibrate(200);
+                                                setCopyModeSource(age); 
+                                              }, 3000);
                                             }}
-                                            onTouchEnd={() => { document.body.style.overflow = ''; }}
+                                            onTouchStart={(e) => { 
+                                              e.stopPropagation();
+                                              clearPressTimer();
+                                              longPressTimer.current = setTimeout(() => { 
+                                                if (navigator.vibrate) navigator.vibrate(200);
+                                                setCopyModeSource(age); 
+                                              }, 3000);
+                                            }}
                                           >
                                             <GripVertical className="w-4 h-4" />
                                           </div>
@@ -1204,7 +1214,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                     </>
                                   )}
                                 </div>
-                              ) : !showPreviewGhost && (
+                              ) : (
                                 <div className="flex-1 flex items-center justify-between">
                                   {isSelected ? (
                                     <div className="flex-1 flex flex-col gap-1 ml-2 mb-1 bg-white p-2 rounded-lg shadow-sm border border-rose-200 z-20 relative">
