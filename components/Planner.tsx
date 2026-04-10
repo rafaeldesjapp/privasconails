@@ -1095,7 +1095,8 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                   className={cn(
                                   "flex-1 flex items-center justify-between px-3 py-1 rounded-lg ml-2 mb-1",
                                   age.status === 'concluido' ? 'bg-[url("https://www.transparenttextures.com/patterns/diagonal-stripes.png")] bg-green-100 text-green-700 font-bold border border-green-200' :
-                                  isMine || isAdminView ? 'bg-gradient-to-r from-rose-100 to-orange-100 text-rose-700 shadow-sm border border-rose-200 cursor-move' : 'bg-slate-100 text-slate-500 line-through'
+                                  isMine || isAdminView ? 'bg-gradient-to-r from-rose-100 to-orange-100 text-rose-700 shadow-sm border border-rose-200 cursor-move' : 'bg-slate-100 text-slate-500 line-through',
+                                  age.service.includes('(Continuação)') && 'opacity-50'
                                 )}>
                                   {editingId === age.id ? (
                                     <div className="flex-1 flex flex-col gap-1 mr-2 mt-1">
