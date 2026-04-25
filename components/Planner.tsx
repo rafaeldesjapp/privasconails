@@ -396,7 +396,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
     commitBooking(time, finalStr);
   };
 
-  const commitBooking = async (timeStr: string, finalServiceStr: string) => {
+  const commitBooking = async (timeStr: string, finalServiceStr: string): Promise<boolean> => {
     try {
       const selectedClient = clientsList.find(c => c.id === selectedClientId);
       const targetUserId = selectedClientId || user.id;
@@ -417,7 +417,6 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       
       const isExplicitlyOpened = adminOverride?.status === 'aberto';
       
-      // Se estiver bloqueado por padrão e NÃO foi aberto explicitamente, entra como pendente (apenas para clientes)
       const isPendente = !isAdminView && (isWeekend || isHoliday || isPastHorizon) && !isExplicitlyOpened;
 
       const novaReserva = {
@@ -437,15 +436,18 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       setPendingBooking(null);
       fetchAgendamentos(currentDate);
       fetchBlockedDays(currentDate);
+      return true;
     } catch (err: any) {
       alert('Erro ao agendar: ' + err.message);
+      return false;
     }
   };
 
-  const confirmAndSendWhatsApp = () => {
+  const confirmAndSendWhatsApp = async () => {
     if (!pendingBooking) return;
     
-    commitBooking(pendingBooking.time, pendingBooking.service);
+    const success = await commitBooking(pendingBooking.time, pendingBooking.service);
+    if (!success) return;
 
     const clientName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Cliente';
     const dataFormatada = format(currentDate, "dd/MM/yyyy");
