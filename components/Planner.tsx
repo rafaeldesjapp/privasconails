@@ -419,8 +419,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       
       const isPendente = !isAdminView && (isWeekend || isHoliday || isPastHorizon) && !isExplicitlyOpened;
 
-      const novaReserva = {
-        user_id: targetUserId,
+      const novaReserva: any = {
         client_name: targetClientName,
         service: finalServiceStr,
         date: format(currentDate, 'yyyy-MM-dd'),
@@ -428,6 +427,14 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
         status: isPendente ? 'pendente_autorizacao' : 'agendado'
       };
 
+      // Só enviamos o user_id se for Admin (para agendar para outros).
+      // Para o cliente comum, o Banco de Dados (Supabase) preencherá 
+      // automaticamente com o auth.uid() via DEFAULT que definimos no script SQL.
+      if (isAdminView && targetUserId) {
+        novaReserva.user_id = targetUserId;
+      }
+
+      console.log('Tentando agendar:', novaReserva);
       const { error } = await supabase.from('agendamentos').insert([novaReserva]);
       if (error) throw error;
       

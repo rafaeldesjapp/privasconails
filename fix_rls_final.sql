@@ -11,8 +11,12 @@ DROP POLICY IF EXISTS "Inserção por dono ou admin/dev" ON agendamentos;
 DROP POLICY IF EXISTS "Exclusão por dono ou admin/dev" ON agendamentos;
 DROP POLICY IF EXISTS "Atualização exclusiva para admin/dev" ON agendamentos;
 
--- 2. Garantir que RLS está habilitado
+-- 2. Garantir que RLS está habilitado e definir valor padrão para user_id
 ALTER TABLE agendamentos ENABLE ROW LEVEL SECURITY;
+
+-- Isso garante que, se o frontend não enviar o user_id, o banco usa o ID de quem está logado.
+-- Evita erros de "RLS Policy Violation" por incompatibilidade de IDs.
+ALTER TABLE agendamentos ALTER COLUMN user_id SET DEFAULT auth.uid();
 
 -- 3. Criar Políticas Robustas
 
