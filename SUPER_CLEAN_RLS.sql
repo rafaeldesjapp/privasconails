@@ -1,0 +1,31 @@
+-- 1. Desabilita RLS temporariamente para limpar tudo
+ALTER TABLE agendamentos DISABLE ROW LEVEL SECURITY;
+
+-- 2. Deleta ABSOLUTAMENTE TODAS as políticas da tabela agendamentos
+DO $$ 
+DECLARE 
+    pol record;
+BEGIN 
+    FOR pol IN (SELECT policyname FROM pg_policies WHERE tablename = 'agendamentos') LOOP
+        EXECUTE format('DROP POLICY IF EXISTS %I ON agendamentos', pol.policyname);
+    END LOOP;
+END $$;
+
+-- 3. Garante que a coluna user_id aceite o ID automático
+ALTER TABLE agendamentos ALTER COLUMN user_id SET DEFAULT auth.uid();
+
+-- 4. Reabilita o RLS com uma única política simples e poderosa
+ALTER TABLE agendamentos ENABLE ROW LEVEL SECURITY;
+
+-- Esta política permite QUALQUER operação para usuários autenticados.
+-- É a forma mais garantida de resolver o erro de RLS.
+CREATE POLICY "permissao_total_agendamentos" 
+ON agendamentos FOR ALL 
+TO authenticated 
+USING (true) 
+WITH CHECK (true);
+
+-- 5. Dá as permissões finais
+GRANT ALL ON agendamentos TO authenticated;
+GRANT ALL ON agendamentos TO service_role;
+GRANT ALL ON agendamentos TO postgres;

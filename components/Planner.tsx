@@ -435,7 +435,8 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       }
 
       console.log('Tentando agendar:', novaReserva);
-      const { error } = await supabase.from('agendamentos').insert([novaReserva]);
+      
+      const { error } = await supabase.from('agendamentos').insert(novaReserva);
       if (error) throw error;
       
       setSelectedSlot(null);
