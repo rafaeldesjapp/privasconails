@@ -504,6 +504,17 @@ function ContaContent() {
       const { error } = await supabase.from('solicitacoes').insert(payload);
       if (error) throw error;
       
+      // Disparar Notificação Push para Admins
+      fetch('/api/notifications/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: '🚨 Questionamento de Fatura',
+          body: `${user?.user_metadata?.full_name || user?.email} contestou um item da comanda.`,
+          url: '/solicitacoes'
+        })
+      }).catch(err => console.error('Erro ao disparar notificação:', err));
+      
       alert('Questão enviada com sucesso ao financeiro!');
       setShowDisputeModal(false);
       setDisputeMessage('');

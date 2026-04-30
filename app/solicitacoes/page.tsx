@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabase';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import Auth from '@/components/Auth';
-import { Bell, Check, X, User, Mail, Phone, Key, AlertCircle, Clock } from 'lucide-react';
+import { Bell, Check, X, User, Mail, Phone, Key, AlertCircle, Clock, Calendar } from 'lucide-react';
+import NotificationToggle from '@/components/NotificationToggle';
 import { cn } from '@/lib/utils';
 
 const SolicitacoesPage = () => {
@@ -67,6 +68,7 @@ const SolicitacoesPage = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: request.user_id,
+            requesterId: user?.id,
             ...request.data
           })
         });
@@ -81,6 +83,7 @@ const SolicitacoesPage = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: request.user_id,
+            requesterId: user?.id,
             newPassword: request.data.newPassword
           })
         });
@@ -100,8 +103,15 @@ const SolicitacoesPage = () => {
             })
             .in('id', appointmentIds);
             
-          if (apError) throw new Error(apError.message || 'Erro ao modificar agendamentos contestados.');
+        if (apError) throw new Error(apError.message || 'Erro ao modificar agendamentos contestados.');
         }
+      } else if (request.type === 'appointment_authorization') {
+        const { error: apError } = await supabase
+          .from('agendamentos')
+          .update({ status: 'agendado' })
+          .eq('id', request.data.appointment_id);
+          
+        if (apError) throw new Error(apError.message || 'Erro ao autorizar agendamento.');
       }
 
       // Marcar como aprovado
@@ -133,6 +143,15 @@ const SolicitacoesPage = () => {
   const handleReject = async (request: any) => {
     setProcessingId(request.id);
     try {
+      if (request.type === 'appointment_authorization') {
+        // Ao rejeitar uma autorização, podemos marcar como cancelado ou deletar. 
+        // Marcando como cancelado para manter histórico se necessário.
+        await supabase
+          .from('agendamentos')
+          .update({ status: 'cancelado' })
+          .eq('id', request.data.appointment_id);
+      }
+
       const { error } = await supabase
         .from('solicitacoes')
         .update({ 
@@ -194,6 +213,7 @@ const SolicitacoesPage = () => {
         
         <main className="flex-1 p-4 lg:p-8">
           <div className="max-w-5xl mx-auto">
+            <NotificationToggle />
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h1 className="text-2xl font-black text-slate-800 font-headline">Solicitações de Alteração</h1>
@@ -229,16 +249,19 @@ const SolicitacoesPage = () => {
                         <div className={cn(
                           "p-3 rounded-xl",
                           request.type === 'change_password' ? "bg-amber-100 text-amber-600" : 
-                          request.type === 'question_charge' ? "bg-rose-100 text-rose-600" : "bg-blue-100 text-blue-600"
+                          request.type === 'question_charge' ? "bg-rose-100 text-rose-600" : 
+                          request.type === 'appointment_authorization' ? "bg-green-100 text-green-600" : "bg-blue-100 text-blue-600"
                         )}>
                           {request.type === 'change_password' ? <Key className="w-6 h-6" /> : 
-                           request.type === 'question_charge' ? <AlertCircle className="w-6 h-6" /> : <User className="w-6 h-6" />}
+                           request.type === 'question_charge' ? <AlertCircle className="w-6 h-6" /> : 
+                           request.type === 'appointment_authorization' ? <Calendar className="w-6 h-6" /> : <User className="w-6 h-6" />}
                         </div>
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <h3 className="font-bold text-slate-800">
                               {request.type === 'change_password' ? 'Alteração de Senha' : 
-                               request.type === 'question_charge' ? 'Questionamento de Fatura' : 'Atualização de Perfil'}
+                               request.type === 'question_charge' ? 'Questionamento de Fatura' : 
+                               request.type === 'appointment_authorization' ? 'Autorização de Agendamento' : 'Atualização de Perfil'}
                             </h3>
                             <span className={cn(
                               "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
@@ -301,6 +324,23 @@ const SolicitacoesPage = () => {
                                     </div>
                                   )}
                                 </>
+                              )}
+
+                              {request.type === 'appointment_authorization' && (
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2 text-sm text-slate-700">
+                                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                    <span>Data: {new Date(request.data.date + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-sm text-slate-700">
+                                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                    <span>Horário: {request.data.time}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-sm text-slate-700">
+                                    <div className="w-3.5 h-3.5 flex items-center justify-center text-slate-400 font-bold text-[10px]">S</div>
+                                    <span className="flex-1">Serviço: <span className="font-medium">{request.data.service}</span></span>
+                                  </div>
+                                </div>
                               )}
                             </div>
                           </div>

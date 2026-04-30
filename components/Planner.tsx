@@ -436,8 +436,36 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
 
       console.log('Tentando agendar:', novaReserva);
       
-      const { error } = await supabase.from('agendamentos').insert(novaReserva);
+      const { data: insertedData, error } = await supabase.from('agendamentos').insert(novaReserva).select().single();
       if (error) throw error;
+
+      // Se for pendente, criar entrada na tabela solicitacoes
+      if (isPendente && insertedData) {
+        await supabase.from('solicitacoes').insert({
+          user_id: targetUserId,
+          type: 'appointment_authorization',
+          data: { 
+            appointment_id: insertedData.id,
+            date: insertedData.date,
+            time: insertedData.time,
+            service: insertedData.service,
+            client_name: insertedData.client_name
+          },
+          status: 'pendente',
+          description: `Autorização de agendamento: ${insertedData.client_name} em ${insertedData.date} às ${insertedData.time}`
+        });
+
+        // Disparar Notificação Push para Admins
+        fetch('/api/notifications/trigger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: '📅 Novo Agendamento Sob Consulta',
+            body: `${insertedData.client_name} solicitou horário para ${insertedData.date} às ${insertedData.time}.`,
+            url: '/solicitacoes'
+          })
+        }).catch(err => console.error('Erro ao disparar notificação:', err));
+      }
       
       setSelectedSlot(null);
       setNewServices([{qty: 1, name: availableServices[0]?.items[0]?.name || ''}]);
@@ -614,6 +642,20 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
         alert(`O banco de dados bloqueou a exclusão do agendamento. Você pode não ter permissão de administrador no nível do banco (RLS).`);
         return;
       }
+
+      // Sincronizar com tabela de solicitações (marcar como rejeitado se houver)
+      await supabase.from('solicitacoes')
+        .update({ 
+          status: 'rejeitado', 
+          data: { 
+            resolved_at: new Date().toISOString(), 
+            resolved_by: user?.email,
+            resolve_comment: 'Cancelado/Excluído via Agenda'
+          } 
+        })
+        .eq('type', 'appointment_authorization')
+        .filter('data->>appointment_id', 'eq', id)
+        .eq('status', 'pendente');
       
       fetchAgendamentos(currentDate);
       fetchBlockedDays(currentDate);
@@ -627,6 +669,21 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       const { error } = await supabase.from('agendamentos').update({ status: newStatus }).eq('id', id);
       if (error) throw error;
       
+      // Sincronizar com tabela de solicitações se for uma autorização
+      if (newStatus === 'agendado') {
+        await supabase.from('solicitacoes')
+          .update({ 
+            status: 'aprovado', 
+            data: { 
+              resolved_at: new Date().toISOString(), 
+              resolved_by: user?.email,
+              resolve_comment: 'Aprovado via Agenda'
+            } 
+          })
+          .eq('type', 'appointment_authorization')
+          .filter('data->>appointment_id', 'eq', id);
+      }
+
       fetchAgendamentos(currentDate);
     } catch (err: any) {
       alert('Erro ao atualizar status: ' + err.message);

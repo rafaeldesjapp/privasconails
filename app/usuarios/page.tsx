@@ -123,15 +123,22 @@ const UsuariosPage = () => {
         setPasswordSuccess(`Senha do usuário ${selectedUser.email} alterada com sucesso!`);
       } else {
         // Lógica para cliente: Criar solicitação
-        const { error: reqError } = await supabase.from('solicitacoes').insert({
-          user_id: user?.id,
-          type: 'change_password',
-          data: { newPassword },
-          status: 'pendente',
           description: `Alteração de senha solicitada por ${user?.email}`
         });
 
         if (reqError) throw reqError;
+
+        // Disparar Notificação Push para Admins
+        fetch('/api/notifications/trigger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: '🔑 Solicitação de Senha',
+            body: `${user?.user_metadata?.full_name || user?.email} solicitou alteração de senha.`,
+            url: '/solicitacoes'
+          })
+        }).catch(err => console.error('Erro ao disparar notificação:', err));
+
         setPasswordSuccess('Sua solicitação de alteração de senha foi enviada para aprovação do administrador.');
       }
 
@@ -318,15 +325,22 @@ const UsuariosPage = () => {
         alert('Usuário atualizado com sucesso!');
       } else {
         // Lógica para cliente: Criar solicitação
-        const { error: reqError } = await supabase.from('solicitacoes').insert({
-          user_id: user?.id,
-          type: 'update_profile',
-          data: data,
-          status: 'pendente',
           description: `Alteração de dados solicitada por ${user?.email}`
         });
 
         if (reqError) throw reqError;
+
+        // Disparar Notificação Push para Admins
+        fetch('/api/notifications/trigger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: '👤 Alteração de Perfil',
+            body: `${user?.user_metadata?.full_name || user?.email} solicitou atualização de dados.`,
+            url: '/solicitacoes'
+          })
+        }).catch(err => console.error('Erro ao disparar notificação:', err));
+
         alert('Sua solicitação de alteração foi enviada para aprovação do administrador.');
       }
 
