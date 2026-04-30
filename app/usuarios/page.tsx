@@ -122,7 +122,11 @@ const UsuariosPage = () => {
 
         setPasswordSuccess(`Senha do usuário ${selectedUser.email} alterada com sucesso!`);
       } else {
-        // Lógica para cliente: Criar solicitação
+        const { error: reqError } = await supabase.from('solicitacoes').insert({
+          user_id: user?.id,
+          type: 'change_password',
+          data: { newPassword },
+          status: 'pendente',
           description: `Alteração de senha solicitada por ${user?.email}`
         });
 
@@ -324,7 +328,11 @@ const UsuariosPage = () => {
         }));
         alert('Usuário atualizado com sucesso!');
       } else {
-        // Lógica para cliente: Criar solicitação
+        const { error: reqError } = await supabase.from('solicitacoes').insert({
+          user_id: user?.id,
+          type: 'update_profile',
+          data: data,
+          status: 'pendente',
           description: `Alteração de dados solicitada por ${user?.email}`
         });
 
