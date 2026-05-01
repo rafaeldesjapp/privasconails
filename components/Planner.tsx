@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { format, addDays, subDays, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getMonth, getYear, isSaturday, isSunday, setHours, setMinutes, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useSearchParams } from 'next/navigation';
 
 interface Agendamento {
   id: string;
@@ -50,7 +51,16 @@ const isTimeRestricted = (time: string) => {
 };
 
 export default function Planner({ role, user, isAdminView = false }: PlannerProps) {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const searchParams = useSearchParams();
+  const dateParam = searchParams.get('date');
+
+  const [currentDate, setCurrentDate] = useState(() => {
+    if (dateParam) {
+      const d = new Date(dateParam + 'T12:00:00');
+      if (!isNaN(d.getTime())) return d;
+    }
+    return new Date();
+  });
   const [direction, setDirection] = useState(0); 
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [loading, setLoading] = useState(true);
@@ -511,8 +521,10 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title: '📅 Novo Agendamento Sob Consulta',
-            body: `${insertedData.client_name} solicitou horário para ${insertedData.date} às ${insertedData.time}.`,
-            url: '/solicitacoes'
+            body: `${insertedData.client_name} solicitou horário para ${format(new Date(insertedData.date + 'T12:00:00'), 'dd/MM/yyyy')} às ${insertedData.time}.`,
+            url: '/solicitacoes',
+            appointmentId: insertedData.id,
+            date: insertedData.date
           })
         }).catch(err => console.error('Erro ao disparar notificação:', err));
       }

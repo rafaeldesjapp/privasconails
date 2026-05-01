@@ -31,7 +31,7 @@ export async function sendPushNotification(subscription: any, payload: any) {
   }
 }
 
-export async function notifyAdmins(payload: { title: string; body: string; url?: string }) {
+export async function notifyAdmins(payload: { title: string; body: string; url?: string; [key: string]: any }) {
   if (!publicKey || !privateKey) {
     console.error('VAPID keys not configured');
     return;
