@@ -10,9 +10,10 @@ self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
     
+    // IDs inconfundíveis para evitar erros de mapeamento no Android
     const actions = [
-      { action: 'approve_v5', title: 'Aprovar ✅' },
-      { action: 'reject_v5', title: 'Recusar ❌' }
+      { action: 'BOT_APPROVE', title: 'Aprovar ✅' },
+      { action: 'BOT_REJECT', title: 'Recusar ❌' }
     ];
 
     const options = {
@@ -20,7 +21,7 @@ self.addEventListener('push', function(event) {
       icon: '/icon-192x192.png',
       badge: '/icon.svg',
       vibrate: [100, 50, 100],
-      tag: 'appointment-request-v5',
+      tag: 'appointment-request-final',
       renotify: true,
       requireInteraction: true,
       data: {
@@ -33,7 +34,7 @@ self.addEventListener('push', function(event) {
     };
 
     event.waitUntil(
-      self.registration.showNotification(data.title + ' (v5 - Final)', options)
+      self.registration.showNotification(data.title, options)
     );
   }
 });
@@ -45,13 +46,13 @@ self.addEventListener('notificationclick', function(event) {
   
   notification.close();
 
-  // Se for um clique em um dos botões v5
-  if (action === 'approve_v5' || action === 'reject_v5') {
-    const actionType = action === 'approve_v5' ? 'approve' : 'reject';
+  // Mapeamento explícito das ações
+  if (action === 'BOT_APPROVE' || action === 'BOT_REJECT') {
+    const actionType = action === 'BOT_APPROVE' ? 'approve' : 'reject';
     
     event.waitUntil(
       self.registration.showNotification('Processando...', {
-        body: `Sua solicitação de ${actionType === 'approve' ? 'aprovação' : 'recusa'} está sendo enviada.`,
+        body: `Detectado: ${actionType === 'approve' ? 'APROVAÇÃO' : 'RECUSA'}. Enviando ao servidor...`,
         icon: '/icon-192x192.png',
         silent: true,
         tag: 'processing'
@@ -67,7 +68,8 @@ self.addEventListener('notificationclick', function(event) {
         });
       }).then(async response => {
         const result = await response.json();
-        // Fechar a notificação de processamento
+        
+        // Fechar notificação de processamento
         self.registration.getNotifications({ tag: 'processing' }).then(notifications => {
           notifications.forEach(n => n.close());
         });
@@ -78,7 +80,7 @@ self.addEventListener('notificationclick', function(event) {
             icon: '/icon-192x192.png'
           });
         } else {
-          return self.registration.showNotification('❌ Erro no Servidor', {
+          return self.registration.showNotification('❌ Erro', {
             body: result.error || 'Falha ao processar.',
             icon: '/icon-192x192.png'
           });
@@ -91,9 +93,6 @@ self.addEventListener('notificationclick', function(event) {
       })
     );
   } else {
-    // Clique normal (abre a agenda na data ou solicitações)
-    event.waitUntil(
-      clients.openWindow(data.url || '/solicitacoes')
-    );
+    event.waitUntil(clients.openWindow(data.url || '/solicitacoes'));
   }
 });
