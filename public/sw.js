@@ -10,10 +10,10 @@ self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
     
-    // IDs inconfundíveis para evitar erros de mapeamento no Android
+    // IDs ultra-simples para diagnóstico
     const actions = [
-      { action: 'BOT_APPROVE', title: 'Aprovar ✅' },
-      { action: 'BOT_REJECT', title: 'Recusar ❌' }
+      { action: 'BOT_YES', title: 'Aprovar ✅' },
+      { action: 'BOT_NO', title: 'Recusar ❌' }
     ];
 
     const options = {
@@ -21,7 +21,7 @@ self.addEventListener('push', function(event) {
       icon: '/icon-192x192.png',
       badge: '/icon.svg',
       vibrate: [100, 50, 100],
-      tag: 'appointment-request-final',
+      tag: 'appointment-request-final-v6',
       renotify: true,
       requireInteraction: true,
       data: {
@@ -34,7 +34,7 @@ self.addEventListener('push', function(event) {
     };
 
     event.waitUntil(
-      self.registration.showNotification(data.title, options)
+      self.registration.showNotification(data.title + ' (v6)', options)
     );
   }
 });
@@ -46,13 +46,12 @@ self.addEventListener('notificationclick', function(event) {
   
   notification.close();
 
-  // Mapeamento explícito das ações
-  if (action === 'BOT_APPROVE' || action === 'BOT_REJECT') {
-    const actionType = action === 'BOT_APPROVE' ? 'approve' : 'reject';
+  if (action === 'BOT_YES' || action === 'BOT_NO') {
+    const actionType = action === 'BOT_YES' ? 'approve' : 'reject';
     
     event.waitUntil(
       self.registration.showNotification('Processando...', {
-        body: `Detectado: ${actionType === 'approve' ? 'APROVAÇÃO' : 'RECUSA'}. Enviando ao servidor...`,
+        body: `Enviando: ${actionType.toUpperCase()} (ID: ${action})...`,
         icon: '/icon-192x192.png',
         silent: true,
         tag: 'processing'
@@ -69,14 +68,14 @@ self.addEventListener('notificationclick', function(event) {
       }).then(async response => {
         const result = await response.json();
         
-        // Fechar notificação de processamento
+        // Limpar processamento
         self.registration.getNotifications({ tag: 'processing' }).then(notifications => {
           notifications.forEach(n => n.close());
         });
 
         if (response.ok) {
-          return self.registration.showNotification('✅ Sucesso!', {
-            body: actionType === 'approve' ? 'O agendamento foi aprovado.' : 'O agendamento foi recusado.',
+          return self.registration.showNotification('✅ Resposta do Servidor', {
+            body: `Recebido: ${result.receivedAction} | Status: ${result.appliedStatus}`,
             icon: '/icon-192x192.png'
           });
         } else {
@@ -87,7 +86,7 @@ self.addEventListener('notificationclick', function(event) {
         }
       }).catch(err => {
         return self.registration.showNotification('⚠️ Erro de Conexão', {
-          body: 'Não foi possível falar com o servidor.',
+          body: 'Falha ao conectar.',
           icon: '/icon-192x192.png'
         });
       })
