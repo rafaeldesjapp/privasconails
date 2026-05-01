@@ -10,17 +10,19 @@ self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
     
-    const actions = [
-      { action: 'approve', title: 'Aprovar Agora' },
-      { action: 'agenda', title: 'Ver na Agenda' }
-    ];
+    const actions = [];
+    if (data.appointmentId) {
+      actions.push({ action: 'approve', title: '✅ Aprovar' });
+      actions.push({ action: 'reject', title: '❌ Recusar' });
+      actions.push({ action: 'agenda', title: '📅 Ver' });
+    }
 
     const options = {
-      body: data.body + ' [A:' + actions.length + ']',
+      body: data.body,
       icon: '/icon-192x192.png',
       badge: '/icon.svg',
       vibrate: [100, 50, 100],
-      tag: 'appointment-request-' + (data.appointmentId || 'default'),
+      tag: 'appointment-request-' + (data.appointmentId || 'general'),
       renotify: true,
       requireInteraction: true,
       data: {
@@ -40,22 +42,26 @@ self.addEventListener('push', function(event) {
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
   
-  if (event.action === 'approve') {
-    const appointmentId = event.notification.data.appointmentId;
+  const appointmentId = event.notification.data.appointmentId;
+
+  if (event.action === 'approve' || event.action === 'reject') {
     if (!appointmentId) {
       event.waitUntil(clients.openWindow(event.notification.data.url));
       return;
     }
 
+    const status = event.action === 'approve' ? 'approve' : 'reject';
+
     event.waitUntil(
-      fetch('/api/admin/approve-fast', {
+      fetch('/api/admin/handle-fast-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointmentId })
+        body: JSON.stringify({ appointmentId, action: status })
       }).then(response => {
         if (response.ok) {
-          return self.registration.showNotification('Sucesso', {
-            body: 'Agendamento aprovado!',
+          const msg = status === 'approve' ? 'Agendamento aprovado!' : 'Agendamento recusado!';
+          return self.registration.showNotification(status === 'approve' ? '✅ Sucesso' : '❌ Resolvido', {
+            body: msg,
             icon: '/icon-192x192.png'
           });
         }
