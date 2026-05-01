@@ -3,13 +3,13 @@ import { notifyAdmins } from '@/lib/notifications';
 
 export async function POST(request: Request) {
   try {
-    const { title, body, url } = await request.json();
+    const payload = await request.json();
     
-    if (!title || !body) {
+    if (!payload.title || !payload.body) {
       return NextResponse.json({ error: 'Title and body are required' }, { status: 400 });
     }
 
-    await notifyAdmins({ title, body, url });
+    await notifyAdmins(payload);
     
     return NextResponse.json({ success: true });
   } catch (err: any) {
