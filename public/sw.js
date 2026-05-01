@@ -10,11 +10,11 @@ self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
     
-    // Teste: Trocando a ordem para ver se o navegador está limitando a 2 ações customizadas
+    // Ações finais com emojis e ordem de prioridade
     const actions = [
-      { action: 'approve', title: 'Aprovar' },
-      { action: 'agenda', title: 'Ver' },
-      { action: 'reject', title: 'Recusar' }
+      { action: 'approve', title: 'Aprovar ✅' },
+      { action: 'agenda', title: 'Ver 📅' },
+      { action: 'reject', title: 'Recusar ❌' }
     ];
 
     const options = {
@@ -22,7 +22,7 @@ self.addEventListener('push', function(event) {
       icon: '/icon-192x192.png',
       badge: '/icon.svg',
       vibrate: [100, 50, 100],
-      tag: 'appointment-request',
+      tag: 'appointment-request-v3', // Alterar tag força o agrupamento/atualização
       renotify: true,
       requireInteraction: true,
       data: {
@@ -34,7 +34,7 @@ self.addEventListener('push', function(event) {
     };
 
     event.waitUntil(
-      self.registration.showNotification(data.title, options)
+      self.registration.showNotification(data.title + ' (v3)', options)
     );
   }
 });
@@ -60,7 +60,7 @@ self.addEventListener('notificationclick', function(event) {
       }).then(response => {
         if (response.ok) {
           const msg = actionType === 'approve' ? 'Agendamento aprovado!' : 'Agendamento recusado!';
-          return self.registration.showNotification(actionType === 'approve' ? 'Sucesso' : 'Resolvido', {
+          return self.registration.showNotification(actionType === 'approve' ? '✅ Sucesso' : '❌ Resolvido', {
             body: msg,
             icon: '/icon-192x192.png'
           });
