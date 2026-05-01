@@ -26,6 +26,7 @@ export default function NotificationToggle() {
       const reg = await navigator.serviceWorker.register('/sw.js', {
         scope: '/'
       });
+      reg.update(); // Forçar verificação de atualização do SW
       setRegistration(reg);
       
       // Verificar se já existe inscrição

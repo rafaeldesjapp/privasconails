@@ -137,6 +137,11 @@ const Header = ({ onMenuClick }: HeaderProps) => {
   };
 
   const handleRefresh = () => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.update();
+      });
+    }
     window.location.reload();
   };
 
