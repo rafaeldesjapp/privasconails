@@ -37,6 +37,18 @@ const generateTimeSlots = (startHour: number, endHour: number) => {
 
 const fullDayTimeSlots = generateTimeSlots(7, 23);
 
+const isTimeRestricted = (time: string) => {
+  const [h, m] = time.split(':').map(Number);
+  const totalMinutes = h * 60 + m;
+  
+  // Morning: 07:00 (420m) to 07:45 (465m)
+  const morning = totalMinutes >= 420 && totalMinutes <= 465;
+  // Night: 20:00 (1200m) to 23:00 (1380m)
+  const night = totalMinutes >= 1200 && totalMinutes <= 1380;
+  
+  return morning || night;
+};
+
 export default function Planner({ role, user, isAdminView = false }: PlannerProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [direction, setDirection] = useState(0); 
@@ -417,7 +429,11 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       
       const isExplicitlyOpened = adminOverride?.status === 'aberto';
       
-      const isPendente = !isAdminView && (isWeekend || isHoliday || isPastHorizon) && !isExplicitlyOpened;
+      const isRestrictedTime = isTimeRestricted(timeStr);
+      const isPendente = !isAdminView && (
+        ((isWeekend || isHoliday || isPastHorizon) && !isExplicitlyOpened) || 
+        isRestrictedTime
+      );
 
       const novaReserva: any = {
         client_name: targetClientName,
@@ -1079,6 +1095,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                         const isBlockedSlot = age?.status === 'bloqueado';
                         const isOccupied = !!age && !isBlockedSlot;
                         const isMine = age?.user_id === user?.id;
+                        const isRestricted = isTimeRestricted(time);
                         const isSelected = selectedSlot === time;
 
                         return (
@@ -1425,14 +1442,26 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                     </button>
                                   )}
 
-                                  {isAdminView && !isSelected && (
-                                    <button 
-                                      onClick={() => handleBlockSlot(time)}
-                                      className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all ml-auto"
-                                      title="Bloquear Horário"
-                                    >
-                                      <Lock className="w-3.5 h-3.5" />
-                                    </button>
+                                  {!isSelected && (
+                                    <div className="flex items-center gap-2 ml-auto">
+                                      {isRestricted && (
+                                        <div 
+                                          className="p-1 text-amber-400" 
+                                          title="Este horário requer autorização prévia"
+                                        >
+                                          <Lock className="w-4 h-4" /> 
+                                        </div>
+                                      )}
+                                      {isAdminView && (
+                                        <button 
+                                          onClick={() => handleBlockSlot(time)}
+                                          className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all"
+                                          title="Bloquear Horário"
+                                        >
+                                          <Lock className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                               )}
