@@ -10,7 +10,6 @@ self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
     
-    // Priorizando as duas ações principais devido ao limite do navegador
     const actions = [
       { action: 'approve', title: 'Aprovar ✅' },
       { action: 'reject', title: 'Recusar ❌' }
@@ -25,9 +24,9 @@ self.addEventListener('push', function(event) {
       renotify: true,
       requireInteraction: true,
       data: {
-        // Agora o clique principal (default) leva para a agenda na data específica
         url: data.date ? `/agenda?date=${data.date}` : (data.url || '/solicitacoes'),
         appointmentId: data.appointmentId,
+        solicitationId: data.solicitationId, // Passando o ID direto agora
         date: data.date
       },
       actions: actions
@@ -43,6 +42,7 @@ self.addEventListener('notificationclick', function(event) {
   event.notification.close();
   
   const appointmentId = event.notification.data.appointmentId;
+  const solicitationId = event.notification.data.solicitationId;
 
   if (event.action === 'approve' || event.action === 'reject') {
     if (!appointmentId) {
@@ -56,7 +56,7 @@ self.addEventListener('notificationclick', function(event) {
       fetch('/api/admin/handle-fast-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointmentId, action: actionType })
+        body: JSON.stringify({ appointmentId, solicitationId, action: actionType })
       }).then(response => {
         if (response.ok) {
           const msg = actionType === 'approve' ? 'Agendamento aprovado!' : 'Agendamento recusado!';
@@ -68,7 +68,6 @@ self.addEventListener('notificationclick', function(event) {
       })
     );
   } else {
-    // Clique normal na notificação (vai para a Agenda na data certa agora)
     event.waitUntil(
       clients.openWindow(event.notification.data.url)
     );

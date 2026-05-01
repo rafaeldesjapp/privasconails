@@ -501,7 +501,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
 
       // Se for pendente, criar entrada na tabela solicitacoes
       if (isPendente && insertedData) {
-        await supabase.from('solicitacoes').insert({
+        const { data: solData } = await supabase.from('solicitacoes').insert({
           user_id: targetUserId,
           type: 'appointment_authorization',
           data: { 
@@ -513,7 +513,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
           },
           status: 'pendente',
           description: `Autorização de agendamento: ${insertedData.client_name} em ${insertedData.date} às ${insertedData.time}`
-        });
+        }).select().single();
 
         // Disparar Notificação Push para Admins
         fetch('/api/notifications/trigger', {
@@ -524,6 +524,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
             body: `${insertedData.client_name} solicitou horário para ${format(new Date(insertedData.date + 'T12:00:00'), 'dd/MM/yyyy')} às ${insertedData.time}.`,
             url: '/solicitacoes',
             appointmentId: insertedData.id,
+            solicitationId: solData?.id, // Passamos o ID direto da solicitação
             date: insertedData.date
           })
         }).catch(err => console.error('Erro ao disparar notificação:', err));
