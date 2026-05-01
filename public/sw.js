@@ -9,20 +9,26 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
+    
+    const actions = [
+      { action: 'approve', title: 'Aprovar Agora' },
+      { action: 'agenda', title: 'Ver na Agenda' }
+    ];
+
     const options = {
-      body: data.body,
+      body: data.body + ' [A:' + actions.length + ']',
       icon: '/icon-192x192.png',
       badge: '/icon.svg',
       vibrate: [100, 50, 100],
+      tag: 'appointment-request-' + (data.appointmentId || 'default'),
+      renotify: true,
+      requireInteraction: true,
       data: {
         url: data.url || '/solicitacoes',
         appointmentId: data.appointmentId,
         date: data.date
       },
-      actions: data.appointmentId ? [
-        { action: 'approve', title: '✅ Aprovar' },
-        { action: 'agenda', title: '📅 Ver na Agenda' }
-      ] : []
+      actions: actions
     };
 
     event.waitUntil(
@@ -36,6 +42,11 @@ self.addEventListener('notificationclick', function(event) {
   
   if (event.action === 'approve') {
     const appointmentId = event.notification.data.appointmentId;
+    if (!appointmentId) {
+      event.waitUntil(clients.openWindow(event.notification.data.url));
+      return;
+    }
+
     event.waitUntil(
       fetch('/api/admin/approve-fast', {
         method: 'POST',
@@ -43,8 +54,8 @@ self.addEventListener('notificationclick', function(event) {
         body: JSON.stringify({ appointmentId })
       }).then(response => {
         if (response.ok) {
-          return self.registration.showNotification('✅ Sucesso', {
-            body: 'O agendamento foi aprovado com sucesso!',
+          return self.registration.showNotification('Sucesso', {
+            body: 'Agendamento aprovado!',
             icon: '/icon-192x192.png'
           });
         }
@@ -57,7 +68,6 @@ self.addEventListener('notificationclick', function(event) {
       clients.openWindow(url)
     );
   } else {
-    // Clique normal na notificação
     event.waitUntil(
       clients.openWindow(event.notification.data.url)
     );
