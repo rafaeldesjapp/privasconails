@@ -10,19 +10,13 @@ self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
     
-    const actions = [];
-    if (data.appointmentId) {
-      actions.push({ action: 'approve', title: '✅ Aprovar' });
-      actions.push({ action: 'reject', title: '❌ Recusar' });
-      actions.push({ action: 'agenda', title: '📅 Ver' });
-    }
-
+    // Tornar as ações incondicionais para teste e remover emojis temporariamente para isolar o problema
     const options = {
       body: data.body,
       icon: '/icon-192x192.png',
       badge: '/icon.svg',
       vibrate: [100, 50, 100],
-      tag: 'appointment-request-' + (data.appointmentId || 'general'),
+      tag: 'appointment-request',
       renotify: true,
       requireInteraction: true,
       data: {
@@ -30,7 +24,11 @@ self.addEventListener('push', function(event) {
         appointmentId: data.appointmentId,
         date: data.date
       },
-      actions: actions
+      actions: [
+        { action: 'approve', title: 'Aprovar' },
+        { action: 'reject', title: 'Recusar' },
+        { action: 'agenda', title: 'Ver' }
+      ]
     };
 
     event.waitUntil(
@@ -50,17 +48,17 @@ self.addEventListener('notificationclick', function(event) {
       return;
     }
 
-    const status = event.action === 'approve' ? 'approve' : 'reject';
+    const actionType = event.action === 'approve' ? 'approve' : 'reject';
 
     event.waitUntil(
       fetch('/api/admin/handle-fast-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointmentId, action: status })
+        body: JSON.stringify({ appointmentId, action: actionType })
       }).then(response => {
         if (response.ok) {
-          const msg = status === 'approve' ? 'Agendamento aprovado!' : 'Agendamento recusado!';
-          return self.registration.showNotification(status === 'approve' ? '✅ Sucesso' : '❌ Resolvido', {
+          const msg = actionType === 'approve' ? 'Agendamento aprovado!' : 'Agendamento recusado!';
+          return self.registration.showNotification(actionType === 'approve' ? 'Sucesso' : 'Resolvido', {
             body: msg,
             icon: '/icon-192x192.png'
           });
