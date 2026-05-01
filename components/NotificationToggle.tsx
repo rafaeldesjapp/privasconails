@@ -7,7 +7,7 @@ import { Bell, BellOff, Loader2 } from 'lucide-react';
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
 export default function NotificationToggle() {
-  const { user } = useSupabaseAuth();
+  const { user, role } = useSupabaseAuth();
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [subscription, setSubscription] = useState<PushSubscription | null>(null);
@@ -148,6 +148,27 @@ export default function NotificationToggle() {
     }
     return outputArray;
   }
+  // Disparar recap ao entrar no sistema (apenas uma vez por sessão)
+  useEffect(() => {
+    if (user && (role === 'admin' || role === 'desenvolvedor') && isSubscribed) {
+      const sessionKey = `recap_sent_${user.id}`;
+      const alreadySent = sessionStorage.getItem(sessionKey);
+      
+      if (!alreadySent) {
+        fetch('/api/notifications/recap', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id })
+        })
+        .then(() => {
+          sessionStorage.setItem(sessionKey, 'true');
+        })
+        .catch(err => console.error('Erro ao disparar recap inicial:', err));
+      }
+    }
+  }, [user, role, isSubscribed]);
+
+  if (!user || (role !== 'admin' && role !== 'desenvolvedor')) return null;
 
   return (
     <div className="bg-white p-4 rounded-2xl border-2 border-pink-100 shadow-sm mb-6 flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-500">
