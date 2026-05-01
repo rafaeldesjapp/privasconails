@@ -10,7 +10,13 @@ self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
     
-    // Tornar as ações incondicionais para teste e remover emojis temporariamente para isolar o problema
+    // Teste: Trocando a ordem para ver se o navegador está limitando a 2 ações customizadas
+    const actions = [
+      { action: 'approve', title: 'Aprovar' },
+      { action: 'agenda', title: 'Ver' },
+      { action: 'reject', title: 'Recusar' }
+    ];
+
     const options = {
       body: data.body,
       icon: '/icon-192x192.png',
@@ -24,11 +30,7 @@ self.addEventListener('push', function(event) {
         appointmentId: data.appointmentId,
         date: data.date
       },
-      actions: [
-        { action: 'approve', title: 'Aprovar' },
-        { action: 'reject', title: 'Recusar' },
-        { action: 'agenda', title: 'Ver' }
-      ]
+      actions: actions
     };
 
     event.waitUntil(
