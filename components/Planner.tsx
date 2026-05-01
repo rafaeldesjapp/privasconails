@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, CheckCircle2, Clock, Plus, Trash2, Calendar as CalIcon, Lock, Unlock, AlertOctagon, Pencil, Save, X, GripVertical, Users, Banknote } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle2, Clock, Plus, Trash2, Calendar as CalIcon, Lock, Unlock, AlertOctagon, Pencil, Save, X, GripVertical, Users, Banknote, StickyNote } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { format, addDays, subDays, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getMonth, getYear, isSaturday, isSunday, setHours, setMinutes, startOfWeek } from 'date-fns';
@@ -15,7 +15,7 @@ interface Agendamento {
   service: string;
   date: string;
   time: string;
-  status: 'agendado' | 'concluido' | 'cancelado' | 'bloqueado' | 'pendente_dinheiro' | 'aberto' | 'pendente_autorizacao';
+  status: 'agendado' | 'concluido' | 'cancelado' | 'bloqueado' | 'pendente_dinheiro' | 'aberto' | 'pendente_autorizacao' | 'nota';
 }
 
 interface PlannerProps {
@@ -59,6 +59,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
   const [clientsList, setClientsList] = useState<{id: string, full_name: string}[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [freeNote, setFreeNote] = useState<string>('');
+  const [bookingMode, setBookingMode] = useState<'agendamento' | 'nota'>('agendamento');
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editServices, setEditServices] = useState<{qty: number, name: string}[]>([{qty: 1, name: ''}]);
@@ -406,6 +407,38 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
     }
 
     commitBooking(time, finalStr);
+  };
+
+  const handleNoteSave = async (time: string) => {
+    if (!freeNote.trim()) return alert('Por favor, digite o conteúdo da anotação.');
+    if (!user) return;
+
+    try {
+      const dateStr = format(currentDate, 'yyyy-MM-dd');
+      const novaNota = {
+        client_name: 'ANOTAÇÃO INTERNA',
+        service: freeNote.trim(),
+        date: dateStr,
+        time: time,
+        status: 'nota',
+        user_id: user.id
+      };
+
+      if (editingId) {
+        const { error } = await supabase.from('agendamentos').update({ service: freeNote.trim() }).eq('id', editingId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('agendamentos').insert(novaNota);
+        if (error) throw error;
+      }
+
+      setEditingId(null);
+      setSelectedSlot(null);
+      setFreeNote('');
+      fetchAgendamentos(currentDate);
+    } catch (err: any) {
+      alert('Erro ao salvar anotação: ' + err.message);
+    }
   };
 
   const commitBooking = async (timeStr: string, finalServiceStr: string): Promise<boolean> => {
@@ -1091,10 +1124,16 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                     </div>
                   ) : (
                       fullDayTimeSlots.map(time => {
-                        const age = agendamentos.find(a => a.time === time);
-                        const isBlockedSlot = age?.status === 'bloqueado';
-                        const isOccupied = !!age && !isBlockedSlot;
-                        const isMine = age?.user_id === user?.id;
+                        const slotItems = agendamentos.filter(a => a.time === time);
+                        const blockedItem = slotItems.find(a => a.status === 'bloqueado');
+                        const noteItem = slotItems.find(a => a.status === 'nota');
+                        const appointmentItem = slotItems.find(a => a.status !== 'bloqueado' && a.status !== 'nota');
+
+                        const isBlockedSlot = !!blockedItem;
+                        const isNote = !!noteItem;
+                        const isOccupied = !!appointmentItem;
+                        
+                        const isMine = appointmentItem?.user_id === user?.id;
                         const isRestricted = isTimeRestricted(time);
                         const isSelected = selectedSlot === time;
 
@@ -1135,19 +1174,18 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                             </div>
                             
                             <div className="flex-1 min-h-[40px] border-b border-rose-100/50 group-hover:border-rose-300 transition-colors flex items-center pr-2">
-
                               {isBlockedSlot ? (
                                 <div className="flex-1 flex items-center justify-between ml-2 bg-slate-50 text-slate-400 opacity-60 px-2 py-0.5 rounded italic">
                                   <div className="flex items-center gap-1">
                                     {isAdminView && (
                                       <div 
-                                        className={cn("p-1 transition-all rounded", copyModeSource?.id === age?.id ? "bg-blue-100 text-blue-600 shadow-sm" : "text-slate-300 hover:text-slate-500 cursor-pointer")}
+                                        className={cn("p-1 transition-all rounded", copyModeSource?.id === blockedItem?.id ? "bg-blue-100 text-blue-600 shadow-sm" : "text-slate-300 hover:text-slate-500 cursor-pointer")}
                                         onMouseDown={(e) => {
                                           e.stopPropagation();
                                           clearPressTimer();
                                           longPressTimer.current = setTimeout(() => { 
                                             if (navigator.vibrate) navigator.vibrate(200);
-                                            setCopyModeSource(age); 
+                                            setCopyModeSource(blockedItem!); 
                                           }, 2000);
                                         }}
                                         onTouchStart={(e) => {
@@ -1155,7 +1193,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                           clearPressTimer();
                                           longPressTimer.current = setTimeout(() => { 
                                             if (navigator.vibrate) navigator.vibrate(200);
-                                            setCopyModeSource(age); 
+                                            setCopyModeSource(blockedItem!); 
                                           }, 2000);
                                         }}
                                       >
@@ -1164,298 +1202,365 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                     )}
                                     <span className="text-sm flex items-center gap-1"><AlertOctagon className="w-3 h-3"/> Bloqueado</span>
                                   </div>
-                                  {isAdminView && age && (
-                                    <button onClick={() => handleCancel(age.id, true)} className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 text-slate-500 hover:text-slate-800 transition-all">
+                                  {isAdminView && blockedItem && (
+                                    <button onClick={() => handleCancel(blockedItem.id, true)} className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 text-slate-500 hover:text-slate-800 transition-all">
                                       <Unlock className="w-3.5 h-3.5" />
                                     </button>
                                   )}
                                 </div>
-                              ) : isOccupied ? (
-                                <div 
-                                  draggable={isAdminView || isMine}
-                                  onDragStart={(e) => {
-                                    e.dataTransfer.setData('text/plain', JSON.stringify(age));
-                                  }}
-                                  className={cn(
-                                  "flex-1 flex items-center justify-between px-3 py-1 rounded-lg ml-2 mb-1",
-                                  age.status === 'concluido' ? 'bg-[url("https://www.transparenttextures.com/patterns/diagonal-stripes.png")] bg-green-100 text-green-700 font-bold border border-green-200' :
-                                  isMine || isAdminView ? 'bg-gradient-to-r from-rose-100 to-orange-100 text-rose-700 shadow-sm border border-rose-200 cursor-move' : 'bg-slate-100 text-slate-500 line-through',
-                                  age.service.includes('(Continuação)') && 'opacity-50'
-                                )}>
-                                  {editingId === age.id ? (
-                                    <div className="flex-1 flex flex-col gap-1 mr-2 mt-1">
-                                      {editServices.map((srv, idx) => (
-                                        <div key={idx} className="flex flex-1 items-center gap-2">
-                                          <select
-                                            className="w-16 bg-white border border-slate-200 px-2 py-1 rounded outline-none text-xs text-slate-700 font-bold"
-                                            value={srv.qty}
-                                            onChange={(e) => {
-                                              const ns = [...editServices];
-                                              ns[idx].qty = Number(e.target.value);
-                                              setEditServices(ns);
-                                            }}
-                                          >
-                                            {[...Array(10)].map((_, i) => (
-                                              <option key={i+1} value={i+1}>{i+1}x</option>
-                                            ))}
-                                          </select>
-                                          <select
-                                            className="flex-1 bg-white border border-slate-200 px-2 py-1 rounded outline-none text-xs text-slate-700 font-bold"
-                                            value={srv.name}
-                                            onChange={(e) => {
-                                              const ns = [...editServices];
-                                              ns[idx].name = e.target.value;
-                                              setEditServices(ns);
-                                            }}
-                                            autoFocus={idx === 0}
-                                          >
-                                            <option value="" disabled>Selecione um Serviço...</option>
-                                            {availableServices.map((grp, gIdx) => (
-                                              <optgroup key={gIdx} label={grp.category?.toUpperCase() || 'SERVIÇOS'}>
-                                                {grp.items.map((svc: {name: string, price: number}, sIdx: number) => (
-                                                   <option key={`${gIdx}-${sIdx}`} value={svc.name}>{svc.name} - R$ {svc.price.toFixed(2).replace('.', ',')}</option>
-                                                ))}
-                                              </optgroup>
-                                            ))}
-                                          </select>
-                                          {editServices.length > 1 && (
-                                            <button onClick={() => setEditServices(editServices.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-500 p-1">
-                                              <X className="w-3 h-3" />
-                                            </button>
-                                          )}
-                                        </div>
-                                      ))}
-
-                                      <div className="flex mt-1">
-                                        <input 
-                                          type="text"
-                                          placeholder="Anotação livre..."
-                                          value={freeNote}
-                                          onChange={(e) => setFreeNote(e.target.value)}
-                                          className="flex-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded outline-none text-xs text-slate-700"
-                                        />
-                                      </div>
-                                      
-                                      <div className="flex justify-between items-center mt-1">
-                                        <button 
-                                          onClick={() => setEditServices([...editServices, {qty: 1, name: availableServices[0]?.items[0]?.name || ''}])}
-                                          className="text-xs font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 bg-rose-50 px-2 py-1 rounded"
-                                        >
-                                          <Plus className="w-3 h-3" /> Adicionar
-                                        </button>
-                                        <div className="flex items-center gap-1">
-                                          <button onClick={() => handleEditSave(age.id)} className="p-1 text-blue-600 hover:bg-blue-100 rounded bg-white shadow-sm" title="Salvar">
-                                            <Save className="w-3.5 h-3.5" />
-                                          </button>
-                                          <button onClick={() => setEditingId(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded bg-white shadow-sm" title="Cancelar">
-                                            <X className="w-3.5 h-3.5" />
-                                          </button>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <>
-                                      <div className="flex items-center gap-1">
-                                        {isAdminView && (
-                                          <div 
-                                            className={cn("p-1 -ml-2 transition-all rounded text-rose-300 hover:text-rose-500", copyModeSource?.id === age?.id ? "bg-blue-100 text-blue-600 shadow-sm opacity-100" : "opacity-60 hover:opacity-100 hover:scale-110 cursor-pointer")}
-                                            onMouseDown={(e) => {
-                                              e.stopPropagation();
-                                              clearPressTimer();
-                                              longPressTimer.current = setTimeout(() => { 
-                                                if (navigator.vibrate) navigator.vibrate(200);
-                                                setCopyModeSource(age); 
-                                              }, 2000);
-                                            }}
-                                            onTouchStart={(e) => { 
-                                              e.stopPropagation();
-                                              clearPressTimer();
-                                              longPressTimer.current = setTimeout(() => { 
-                                                if (navigator.vibrate) navigator.vibrate(200);
-                                                setCopyModeSource(age); 
-                                              }, 2000);
-                                            }}
-                                          >
-                                            <GripVertical className="w-4 h-4" />
-                                          </div>
-                                        )}
-                                        <span className="font-medium text-sm truncate flex-1 block">
-                                          {isAdminView || isMine ? `${age.client_name} - ${age.service}` : 'Agendado'}
-                                        </span>
-                                        {age.status === 'pendente_autorizacao' && (
-                                          <span className="ml-2 px-1.5 py-0.5 rounded-full bg-amber-200 text-[9px] font-black uppercase tracking-widest text-amber-800 flex items-center gap-1 shadow-sm shrink-0">
-                                            <Clock className="w-3 h-3" /> Aguardando Autorização
-                                          </span>
-                                        )}
-                                        {age.status === 'concluido' && (
-                                          <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-black bg-green-200 text-green-800 uppercase tracking-widest border border-green-300 shadow-sm shrink-0">
-                                            ✓ PG
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      {(isAdminView || isMine) && (
-                                        <div className="flex items-center gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                          {isAdminView && age.status === 'pendente_dinheiro' && (
-                                            <button onClick={() => handleConfirmCash(age.id)} className="p-1 text-amber-500 hover:bg-amber-100 flex items-center gap-1 rounded transition-colors" title="Confirmar Recebimento em Dinheiro (Físico)">
-                                              <Banknote className="w-4 h-4" />
-                                            </button>
-                                          )}
-                                          {isAdminView && age.status === 'pendente_autorizacao' && (
-                                            <button onClick={() => handleStatusChange(age.id, 'agendado')} className="p-1 text-green-500 hover:bg-green-100 flex items-center gap-1 rounded transition-colors" title="Autorizar Agendamento">
-                                              <CheckCircle2 className="w-4 h-4" />
-                                            </button>
-                                          )}
-                                          {isAdminView && age.status !== 'concluido' && age.status !== 'pendente_dinheiro' && age.status !== 'pendente_autorizacao' && (
-                                            <button onClick={() => setCheckoutData(age)} className="p-1 text-green-600 hover:bg-green-200 rounded transition-colors" title="Finalizar Atendimento">
-                                              <CheckCircle2 className="w-4 h-4" />
-                                            </button>
-                                          )}
-                                          {(isAdminView || isMine) && (
-                                            <button onClick={() => { 
-                                              if (age.service.includes(' | ')) {
-                                                const parts = age.service.split(' | ');
-                                                setEditServices(parseServicesString(parts[0]));
-                                                setFreeNote(parts[1] || '');
-                                              } else {
-                                                setEditServices(parseServicesString(age.service));
-                                                setFreeNote('');
-                                              }
-                                              setEditingId(age.id); 
-                                            }} className="p-1 text-blue-500 hover:bg-blue-200 rounded" title="Editar Serviço">
-                                              <Pencil className="w-4 h-4" />
-                                            </button>
-                                          )}
-                                          <button onClick={() => handleCancel(age.id)} className="p-1 text-red-500 hover:bg-red-200 rounded" title="Cancelar Agendamento">
-                                            <Trash2 className="w-4 h-4" />
-                                          </button>
-                                        </div>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
                               ) : (
-                                <div className="flex-1 flex items-center justify-between">
-                                  {isSelected ? (
-                                    <div className="flex-1 flex flex-col gap-1 ml-2 mb-1 bg-white p-2 rounded-lg shadow-sm border border-rose-200 z-20 relative">
-                                      {isAdminView && (
-                                        <div className="flex items-center gap-2 mb-1">
-                                          <Users className="w-4 h-4 text-slate-400" />
-                                          <select 
-                                            className="flex-1 border border-slate-200 rounded px-2 py-1 outline-none text-xs text-slate-600 bg-slate-50"
-                                            value={selectedClientId}
-                                            onChange={e => {
-                                              if (e.target.value === 'NEW_CLIENT') {
-                                                 setShowNewClientModal(true);
-                                                 setSelectedClientId('');
-                                              } else {
-                                                setSelectedClientId(e.target.value);
-                                              }
-                                            }}
-                                          >
-                                            <option value="NEW_CLIENT">(Criar Novo Cliente)</option>
-                                            <option value="">(Reservar para Mim)</option>
-                                            {clientsList.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-                                          </select>
+                                <div className="flex-1 flex flex-col gap-1 pr-2 py-1">
+                                  {/* Render existing Note if any */}
+                                  {isNote && (
+                                    isAdminView ? (
+                                      <div className="flex items-center justify-between px-3 py-1.5 rounded-lg ml-2 bg-amber-50 border border-amber-200 shadow-sm animate-in fade-in slide-in-from-left-2">
+                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                          <StickyNote className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                          <span className="text-sm text-amber-800 font-medium italic truncate">
+                                            {noteItem?.service}
+                                          </span>
                                         </div>
-                                      )}
-                                      {newServices.map((srv, idx) => (
-                                        <div key={idx} className="flex items-center gap-2">
-                                          <select
-                                            className="w-16 bg-slate-50 border border-slate-200 px-2 py-1.5 rounded-md outline-none text-xs text-slate-700 font-bold"
-                                            value={srv.qty}
-                                            onChange={(e) => {
-                                              const ns = [...newServices];
-                                              ns[idx].qty = Number(e.target.value);
-                                              setNewServices(ns);
-                                            }}
-                                          >
-                                            {[...Array(10)].map((_, i) => (
-                                              <option key={i+1} value={i+1}>{i+1}x</option>
-                                            ))}
-                                          </select>
-                                          <select
-                                            className="flex-1 w-full bg-slate-50 border border-slate-200 px-2 py-1.5 rounded-md outline-none text-xs text-slate-700 font-bold focus:border-rose-300 transition-colors"
-                                            value={srv.name}
-                                            onChange={(e) => {
-                                              const ns = [...newServices];
-                                              ns[idx].name = e.target.value;
-                                              setNewServices(ns);
-                                            }}
-                                            autoFocus={idx === 0}
-                                          >
-                                            <option value="" disabled>Selecione um Serviço...</option>
-                                            {availableServices.map((grp, gIdx) => (
-                                              <optgroup key={gIdx} label={grp.category?.toUpperCase() || 'SERVIÇOS'}>
-                                                {grp.items.map((svc: {name: string, price: number}, sIdx: number) => (
-                                                   <option key={`${gIdx}-${sIdx}`} value={svc.name}>{svc.name} - R$ {svc.price.toFixed(2).replace('.', ',')}</option>
-                                                ))}
-                                              </optgroup>
-                                            ))}
-                                          </select>
-                                          {newServices.length > 1 && (
-                                            <button onClick={() => setNewServices(newServices.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-500 p-1">
-                                              <X className="w-3 h-3" />
-                                            </button>
-                                          )}
-                                        </div>
-                                      ))}
-
-                                      <div className="flex mt-1">
-                                        <input 
-                                          type="text"
-                                          placeholder="Anotação livre..."
-                                          value={freeNote}
-                                          onChange={(e) => setFreeNote(e.target.value)}
-                                          className="flex-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded outline-none text-xs text-slate-700"
-                                        />
-                                      </div>
-
-                                      <div className="flex justify-between items-center mt-1">
-                                        <button 
-                                          onClick={() => setNewServices([...newServices, {qty: 1, name: availableServices[0]?.items[0]?.name || ''}])}
-                                          className="text-xs font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 bg-rose-50 px-2 py-1 rounded"
-                                        >
-                                          <Plus className="w-3 h-3" /> Adicionar
-                                        </button>
-                                        
                                         <div className="flex items-center gap-1">
                                           <button 
-                                            onClick={() => handleBook(time)}
-                                            className="bg-rose-500 text-white px-2 py-1 rounded text-xs font-bold shadow hover:bg-rose-600 transition-colors shrink-0"
+                                            onClick={() => { setBookingMode('nota'); setEditingId(noteItem?.id || null); setFreeNote(noteItem?.service || ''); setSelectedSlot(time); }}
+                                            className="p-1 text-amber-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all"
+                                            title="Editar Anotação"
                                           >
-                                            Salvar
+                                            <Pencil className="w-3.5 h-3.5" />
                                           </button>
-                                          <button onClick={() => setSelectedSlot(null)} className="p-1 text-slate-400 hover:text-slate-600 auto shrink-0">
-                                            <Trash2 className="w-4 h-4" />
+                                          <button 
+                                            onClick={() => handleCancel(noteItem!.id)}
+                                            className="p-1 text-amber-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"
+                                            title="Excluir Anotação"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
                                           </button>
                                         </div>
                                       </div>
-                                    </div>
-                                  ) : (
-                                    <button 
-                                      onClick={() => { setSelectedSlot(time); setNewServices([{qty: 1, name: availableServices[0]?.items[0]?.name || ''}]); }}
-                                      className="flex items-center gap-1 md:gap-2 text-rose-400 md:text-slate-300 hover:text-rose-500 text-sm font-medium ml-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all z-20 relative"
-                                    >
-                                      <Plus className="w-4 h-4" />
-                                      <span className="text-xs hidden md:inline">Agendar</span>
-                                    </button>
+                                    ) : null
                                   )}
 
-                                  {!isSelected && (
-                                    <div className="flex items-center gap-2 ml-auto">
-                                      {isRestricted && (
-                                        <div 
-                                          className="p-1 text-amber-400" 
-                                          title="Este horário requer autorização prévia"
-                                        >
-                                          <Lock className="w-4 h-4" /> 
+                                  {/* Render existing Appointment if any */}
+                                  {isOccupied && (
+                                    <div 
+                                      draggable={isAdminView || isMine}
+                                      onDragStart={(e) => {
+                                        e.dataTransfer.setData('text/plain', JSON.stringify(appointmentItem));
+                                      }}
+                                      className={cn(
+                                      "flex-1 flex items-center justify-between px-3 py-1 rounded-lg ml-2",
+                                      appointmentItem!.status === 'concluido' ? 'bg-[url("https://www.transparenttextures.com/patterns/diagonal-stripes.png")] bg-green-100 text-green-700 font-bold border border-green-200' :
+                                      isMine || isAdminView ? 'bg-gradient-to-r from-rose-100 to-orange-100 text-rose-700 shadow-sm border border-rose-200 cursor-move' : 'bg-slate-100 text-slate-500 line-through',
+                                      appointmentItem!.service.includes('(Continuação)') && 'opacity-50'
+                                    )}>
+                                      {editingId === appointmentItem!.id && bookingMode === 'agendamento' ? (
+                                        <div className="flex-1 flex flex-col gap-1 mr-2 mt-1">
+                                          {editServices.map((srv, idx) => (
+                                            <div key={idx} className="flex flex-1 items-center gap-2">
+                                              <select
+                                                className="w-16 bg-white border border-slate-200 px-2 py-1 rounded outline-none text-xs text-slate-700 font-bold"
+                                                value={srv.qty}
+                                                onChange={(e) => {
+                                                  const ns = [...editServices];
+                                                  ns[idx].qty = Number(e.target.value);
+                                                  setEditServices(ns);
+                                                }}
+                                              >
+                                                {[...Array(10)].map((_, i) => (
+                                                  <option key={i+1} value={i+1}>{i+1}x</option>
+                                                ))}
+                                              </select>
+                                              <select
+                                                className="flex-1 bg-white border border-slate-200 px-2 py-1 rounded outline-none text-xs text-slate-700 font-bold"
+                                                value={srv.name}
+                                                onChange={(e) => {
+                                                  const ns = [...editServices];
+                                                  ns[idx].name = e.target.value;
+                                                  setEditServices(ns);
+                                                }}
+                                                autoFocus={idx === 0}
+                                              >
+                                                <option value="" disabled>Selecione um Serviço...</option>
+                                                {availableServices.map((grp, gIdx) => (
+                                                  <optgroup key={gIdx} label={grp.category?.toUpperCase() || 'SERVIÇOS'}>
+                                                    {grp.items.map((svc: {name: string, price: number}, sIdx: number) => (
+                                                       <option key={`${gIdx}-${sIdx}`} value={svc.name}>{svc.name} - R$ {svc.price.toFixed(2).replace('.', ',')}</option>
+                                                    ))}
+                                                  </optgroup>
+                                                ))}
+                                              </select>
+                                              {editServices.length > 1 && (
+                                                <button onClick={() => setEditServices(editServices.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-500 p-1">
+                                                  <X className="w-3 h-3" />
+                                                </button>
+                                              )}
+                                            </div>
+                                          ))}
+
+                                          <div className="flex mt-1">
+                                            <input 
+                                              type="text"
+                                              placeholder="Anotação livre..."
+                                              value={freeNote}
+                                              onChange={(e) => setFreeNote(e.target.value)}
+                                              className="flex-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded outline-none text-xs text-slate-700"
+                                            />
+                                          </div>
+                                          
+                                          <div className="flex justify-between items-center mt-1 pb-1">
+                                            <button 
+                                              onClick={() => setEditServices([...editServices, {qty: 1, name: availableServices[0]?.items[0]?.name || ''}])}
+                                              className="text-xs font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 bg-rose-50 px-2 py-1 rounded"
+                                            >
+                                              <Plus className="w-3 h-3" /> Adicionar
+                                            </button>
+                                            <div className="flex items-center gap-1">
+                                              <button onClick={() => handleEditSave(appointmentItem!.id)} className="p-1 text-blue-600 hover:bg-blue-100 rounded bg-white shadow-sm" title="Salvar">
+                                                <Save className="w-3.5 h-3.5" />
+                                              </button>
+                                              <button onClick={() => { setEditingId(null); setSelectedSlot(null); }} className="p-1 text-slate-400 hover:bg-slate-100 rounded bg-white shadow-sm" title="Cancelar">
+                                                <X className="w-3.5 h-3.5" />
+                                              </button>
+                                            </div>
+                                          </div>
                                         </div>
+                                      ) : (
+                                        <>
+                                          <div className="flex items-center gap-1 py-1">
+                                            {isAdminView && (
+                                              <div 
+                                                className={cn("p-1 -ml-2 transition-all rounded text-rose-300 hover:text-rose-500", copyModeSource?.id === appointmentItem!.id ? "bg-blue-100 text-blue-600 shadow-sm opacity-100" : "opacity-60 hover:opacity-100 hover:scale-110 cursor-pointer")}
+                                                onMouseDown={(e) => {
+                                                  e.stopPropagation();
+                                                  clearPressTimer();
+                                                  longPressTimer.current = setTimeout(() => { 
+                                                    if (navigator.vibrate) navigator.vibrate(200);
+                                                    setCopyModeSource(appointmentItem!); 
+                                                  }, 2000);
+                                                }}
+                                                onTouchStart={(e) => { 
+                                                  e.stopPropagation();
+                                                  clearPressTimer();
+                                                  longPressTimer.current = setTimeout(() => { 
+                                                    if (navigator.vibrate) navigator.vibrate(200);
+                                                    setCopyModeSource(appointmentItem!); 
+                                                  }, 2000);
+                                                }}
+                                              >
+                                                <GripVertical className="w-4 h-4" />
+                                              </div>
+                                            )}
+                                            <span className="font-medium text-sm truncate flex-1 block">
+                                              {isAdminView || isMine ? `${appointmentItem!.client_name} - ${appointmentItem!.service}` : 'Agendado'}
+                                            </span>
+                                            {appointmentItem!.status === 'pendente_autorizacao' && (
+                                              <span className="ml-2 px-1.5 py-0.5 rounded-full bg-amber-200 text-[9px] font-black uppercase tracking-widest text-amber-800 flex items-center gap-1 shadow-sm shrink-0">
+                                                <Clock className="w-3 h-3" /> Aguardando Autorização
+                                              </span>
+                                            )}
+                                            {appointmentItem!.status === 'concluido' && (
+                                              <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-black bg-green-200 text-green-800 uppercase tracking-widest border border-green-300 shadow-sm shrink-0">
+                                                ✓ PG
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          {(isAdminView || isMine) && (
+                                            <div className="flex items-center gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                              {isAdminView && appointmentItem!.status === 'pendente_dinheiro' && (
+                                                <button onClick={() => handleConfirmCash(appointmentItem!.id)} className="p-1 text-amber-500 hover:bg-amber-100 flex items-center gap-1 rounded transition-colors" title="Confirmar Recebimento em Dinheiro (Físico)">
+                                                  <Banknote className="w-4 h-4" />
+                                                </button>
+                                              )}
+                                              {isAdminView && appointmentItem!.status === 'pendente_autorizacao' && (
+                                                <button onClick={() => handleStatusChange(appointmentItem!.id, 'agendado')} className="p-1 text-green-500 hover:bg-green-100 flex items-center gap-1 rounded transition-colors" title="Autorizar Agendamento">
+                                                  <CheckCircle2 className="w-4 h-4" />
+                                                </button>
+                                              )}
+                                              {isAdminView && appointmentItem!.status !== 'concluido' && appointmentItem!.status !== 'pendente_dinheiro' && appointmentItem!.status !== 'pendente_autorizacao' && (
+                                                <button onClick={() => setCheckoutData(appointmentItem!)} className="p-1 text-green-600 hover:bg-green-200 rounded transition-colors" title="Finalizar Atendimento">
+                                                  <CheckCircle2 className="w-4 h-4" />
+                                                </button>
+                                              )}
+                                              {(isAdminView || isMine) && (
+                                                <button onClick={() => { 
+                                                  setBookingMode('agendamento');
+                                                  if (appointmentItem!.service.includes(' | ')) {
+                                                    const parts = appointmentItem!.service.split(' | ');
+                                                    setEditServices(parseServicesString(parts[0]));
+                                                    setFreeNote(parts[1] || '');
+                                                  } else {
+                                                    setEditServices(parseServicesString(appointmentItem!.service));
+                                                    setFreeNote('');
+                                                  }
+                                                  setEditingId(appointmentItem!.id); 
+                                                }} className="p-1 text-blue-500 hover:bg-blue-200 rounded" title="Editar Serviço">
+                                                  <Pencil className="w-4 h-4" />
+                                                </button>
+                                              )}
+                                              <button onClick={() => handleCancel(appointmentItem!.id)} className="p-1 text-red-500 hover:bg-red-200 rounded" title="Cancelar Agendamento">
+                                                <Trash2 className="w-4 h-4" />
+                                              </button>
+                                            </div>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Selection or Buttons UI */}
+                                  {isSelected ? (
+                                    <div className="flex-1 flex flex-col gap-1 ml-2 mb-1 bg-white p-3 rounded-lg shadow-sm border border-rose-200 z-20 relative">
+                                      {bookingMode === 'nota' ? (
+                                        <>
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <StickyNote className="w-4 h-4 text-amber-500" />
+                                            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">{editingId ? 'Editando Anotação' : 'Nova Anotação Interna'}</span>
+                                          </div>
+                                          <textarea 
+                                            placeholder="Digite sua anotação aqui... (Visível apenas para Admin/Dev)"
+                                            value={freeNote}
+                                            onChange={(e) => setFreeNote(e.target.value)}
+                                            className="w-full min-h-[80px] bg-amber-50/30 border border-amber-100 p-2 rounded-md outline-none text-xs text-slate-700 focus:border-amber-300 transition-colors resize-none"
+                                            autoFocus
+                                          />
+                                          <div className="flex justify-end items-center mt-2 gap-2">
+                                            <button onClick={() => { setSelectedSlot(null); setEditingId(null); }} className="text-xs font-bold text-slate-400 hover:text-slate-600 px-2 py-1">
+                                              Cancelar
+                                            </button>
+                                            <button 
+                                              onClick={() => handleNoteSave(time)}
+                                              className="bg-amber-500 text-white px-3 py-1 rounded text-xs font-bold shadow hover:bg-amber-600 transition-colors"
+                                            >
+                                              {editingId ? 'Atualizar' : 'Salvar'}
+                                            </button>
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <>
+                                          {isAdminView && (
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <Users className="w-4 h-4 text-slate-400" />
+                                              <select 
+                                                className="flex-1 border border-slate-200 rounded px-2 py-1 outline-none text-xs text-slate-600 bg-slate-50"
+                                                value={selectedClientId}
+                                                onChange={e => {
+                                                  if (e.target.value === 'NEW_CLIENT') {
+                                                    setShowNewClientModal(true);
+                                                    setSelectedClientId('');
+                                                  } else {
+                                                    setSelectedClientId(e.target.value);
+                                                  }
+                                                }}
+                                              >
+                                                <option value="NEW_CLIENT">(Criar Novo Cliente)</option>
+                                                <option value="">(Reservar para Mim)</option>
+                                                {clientsList.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+                                              </select>
+                                            </div>
+                                          )}
+                                          {newServices.map((srv, idx) => (
+                                            <div key={idx} className="flex items-center gap-2">
+                                              <select
+                                                className="w-16 bg-slate-50 border border-slate-200 px-2 py-1.5 rounded-md outline-none text-xs text-slate-700 font-bold"
+                                                value={srv.qty}
+                                                onChange={(e) => {
+                                                  const ns = [...newServices];
+                                                  ns[idx].qty = Number(e.target.value);
+                                                  setNewServices(ns);
+                                                }}
+                                              >
+                                                {[...Array(10)].map((_, i) => (
+                                                  <option key={i+1} value={i+1}>{i+1}x</option>
+                                                ))}
+                                              </select>
+                                              <select
+                                                className="flex-1 w-full bg-slate-50 border border-slate-200 px-2 py-1.5 rounded-md outline-none text-xs text-slate-700 font-bold focus:border-rose-300 transition-colors"
+                                                value={srv.name}
+                                                onChange={(e) => {
+                                                  const ns = [...newServices];
+                                                  ns[idx].name = e.target.value;
+                                                  setNewServices(ns);
+                                                }}
+                                                autoFocus={idx === 0}
+                                              >
+                                                <option value="" disabled>Selecione um Serviço...</option>
+                                                {availableServices.map((grp, gIdx) => (
+                                                  <optgroup key={gIdx} label={grp.category?.toUpperCase() || 'SERVIÇOS'}>
+                                                    {grp.items.map((svc: {name: string, price: number}, sIdx: number) => (
+                                                      <option key={`${gIdx}-${sIdx}`} value={svc.name}>{svc.name} - R$ {svc.price.toFixed(2).replace('.', ',')}</option>
+                                                    ))}
+                                                  </optgroup>
+                                                ))}
+                                              </select>
+                                              {newServices.length > 1 && (
+                                                <button onClick={() => setNewServices(newServices.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-500 p-1">
+                                                  <X className="w-3 h-3" />
+                                                </button>
+                                              )}
+                                            </div>
+                                          ))}
+
+                                          <div className="flex mt-1">
+                                            <input 
+                                              type="text"
+                                              placeholder="Anotação livre..."
+                                              value={freeNote}
+                                              onChange={(e) => setFreeNote(e.target.value)}
+                                              className="flex-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded outline-none text-xs text-slate-700"
+                                            />
+                                          </div>
+
+                                          <div className="flex justify-between items-center mt-1">
+                                            <button 
+                                              onClick={() => setNewServices([...newServices, {qty: 1, name: availableServices[0]?.items[0]?.name || ''}])}
+                                              className="text-xs font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 bg-rose-50 px-2 py-1 rounded"
+                                            >
+                                              <Plus className="w-3 h-3" /> Adicionar
+                                            </button>
+                                            
+                                            <div className="flex items-center gap-1">
+                                              <button 
+                                                onClick={() => handleBook(time)}
+                                                className="bg-rose-500 text-white px-2 py-1 rounded text-xs font-bold shadow hover:bg-rose-600 transition-colors shrink-0"
+                                              >
+                                                Salvar
+                                              </button>
+                                              <button onClick={() => setSelectedSlot(null)} className="p-1 text-slate-400 hover:text-slate-600 auto shrink-0">
+                                                <Trash2 className="w-4 h-4" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1 md:gap-2 ml-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all z-20 relative">
+                                      {!isOccupied && (
+                                        <button 
+                                          onClick={() => { setBookingMode('agendamento'); setSelectedSlot(time); setNewServices([{qty: 1, name: availableServices[0]?.items[0]?.name || ''}]); setFreeNote(''); setEditingId(null); }}
+                                          className="flex items-center gap-1 text-rose-400 md:text-slate-300 hover:text-rose-500 text-sm font-medium"
+                                        >
+                                          <Plus className="w-4 h-4" />
+                                          <span className="text-xs hidden md:inline">Agendar</span>
+                                        </button>
+                                      )}
+                                      {isAdminView && !isNote && (
+                                        <button 
+                                          onClick={() => { setBookingMode('nota'); setSelectedSlot(time); setFreeNote(''); setEditingId(null); }}
+                                          className={cn(
+                                            "flex items-center gap-1 text-amber-500 md:text-slate-300 hover:text-amber-600 text-sm font-medium",
+                                            !isOccupied && "border-l border-slate-100 pl-2"
+                                          )}
+                                        >
+                                          <StickyNote className="w-4 h-4" />
+                                          <span className="text-xs hidden md:inline">Anotar</span>
+                                        </button>
                                       )}
                                       {isAdminView && (
                                         <button 
                                           onClick={() => handleBlockSlot(time)}
-                                          className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all"
+                                          className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all ml-auto"
                                           title="Bloquear Horário"
                                         >
                                           <Lock className="w-3.5 h-3.5" />

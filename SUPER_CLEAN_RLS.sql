@@ -17,13 +17,25 @@ ALTER TABLE agendamentos ALTER COLUMN user_id SET DEFAULT auth.uid();
 -- 4. Reabilita o RLS com uma única política simples e poderosa
 ALTER TABLE agendamentos ENABLE ROW LEVEL SECURITY;
 
--- Esta política permite QUALQUER operação para usuários autenticados.
--- É a forma mais garantida de resolver o erro de RLS.
+-- Esta política permite operações para usuários autenticados,
+-- mas restringe a leitura e escrita de registros com status 'nota' apenas para Admin/Dev.
 CREATE POLICY "permissao_total_agendamentos" 
 ON agendamentos FOR ALL 
 TO authenticated 
-USING (true) 
-WITH CHECK (true);
+USING (
+  (status != 'nota') OR 
+  (EXISTS (
+    SELECT 1 FROM profiles 
+    WHERE profiles.id = auth.uid() AND (profiles.role = 'admin' OR profiles.role = 'desenvolvedor')
+  ))
+) 
+WITH CHECK (
+  (status != 'nota') OR 
+  (EXISTS (
+    SELECT 1 FROM profiles 
+    WHERE profiles.id = auth.uid() AND (profiles.role = 'admin' OR profiles.role = 'desenvolvedor')
+  ))
+);
 
 -- 5. Dá as permissões finais
 GRANT ALL ON agendamentos TO authenticated;

@@ -101,6 +101,10 @@ const Header = ({ onMenuClick }: HeaderProps) => {
     window.location.href = '/';
   };
 
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
   return (
     <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-40">
       <div className="flex items-center gap-4">
@@ -162,9 +166,9 @@ const Header = ({ onMenuClick }: HeaderProps) => {
         {/* Ações Rápidas  */}
         <div className="flex items-center gap-1">
           <button 
-            onClick={handleSignOut}
+            onClick={handleRefresh}
             className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            title="Trocar de Conta"
+            title="Atualizar Página"
           >
             <RefreshCcw className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
