@@ -10,10 +10,9 @@ self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
     
-    // Ações finais com emojis e ordem de prioridade
+    // Priorizando as duas ações principais devido ao limite do navegador
     const actions = [
       { action: 'approve', title: 'Aprovar ✅' },
-      { action: 'agenda', title: 'Ver 📅' },
       { action: 'reject', title: 'Recusar ❌' }
     ];
 
@@ -22,11 +21,12 @@ self.addEventListener('push', function(event) {
       icon: '/icon-192x192.png',
       badge: '/icon.svg',
       vibrate: [100, 50, 100],
-      tag: 'appointment-request-v3', // Alterar tag força o agrupamento/atualização
+      tag: 'appointment-request',
       renotify: true,
       requireInteraction: true,
       data: {
-        url: data.url || '/solicitacoes',
+        // Agora o clique principal (default) leva para a agenda na data específica
+        url: data.date ? `/agenda?date=${data.date}` : (data.url || '/solicitacoes'),
         appointmentId: data.appointmentId,
         date: data.date
       },
@@ -34,7 +34,7 @@ self.addEventListener('push', function(event) {
     };
 
     event.waitUntil(
-      self.registration.showNotification(data.title + ' (v3)', options)
+      self.registration.showNotification(data.title, options)
     );
   }
 });
@@ -67,13 +67,8 @@ self.addEventListener('notificationclick', function(event) {
         }
       })
     );
-  } else if (event.action === 'agenda') {
-    const date = event.notification.data.date;
-    const url = date ? `/agenda?date=${date}` : '/agenda';
-    event.waitUntil(
-      clients.openWindow(url)
-    );
   } else {
+    // Clique normal na notificação (vai para a Agenda na data certa agora)
     event.waitUntil(
       clients.openWindow(event.notification.data.url)
     );
