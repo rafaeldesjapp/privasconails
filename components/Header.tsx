@@ -5,6 +5,8 @@ import { Menu, User, Bell, LogOut, RefreshCcw, Camera, Loader2 } from 'lucide-re
 import { useSupabaseAuth } from '@/hooks/use-supabase';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -17,12 +19,45 @@ const Header = ({ onMenuClick }: HeaderProps) => {
   
   const [avatar, setAvatar] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     if (user?.user_metadata?.avatar_url) {
       setAvatar(user.user_metadata.avatar_url);
     }
   }, [user]);
+
+  useEffect(() => {
+    if (role === 'admin' || role === 'desenvolvedor') {
+      fetchPendingRequests();
+
+      const channel = supabase
+        .channel('solicitacoes-header')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitacoes' }, () => {
+          fetchPendingRequests();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [role]);
+
+  const fetchPendingRequests = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('solicitacoes')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pendente');
+
+      if (!error) {
+        setPendingCount(count || 0);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar contagem de solicitações:', err);
+    }
+  };
 
   const handleAvatarClick = () => {
     if (fileInputRef.current) {
@@ -117,9 +152,27 @@ const Header = ({ onMenuClick }: HeaderProps) => {
       </div>
 
       <div className="flex items-center gap-2 sm:gap-4">
-        <button className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-colors relative hidden sm:block">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+        <button 
+          onClick={() => router.push('/solicitacoes')}
+          className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-colors relative hidden sm:block"
+        >
+          <motion.div
+            animate={pendingCount > 0 ? {
+              rotate: [0, -15, 15, -15, 15, 0],
+            } : { rotate: 0 }}
+            transition={pendingCount > 0 ? {
+              duration: 0.5,
+              repeat: Infinity,
+              repeatDelay: 2.5
+            } : {}}
+          >
+            <Bell className={cn("w-5 h-5", pendingCount > 0 ? "text-blue-500" : "text-slate-400")} />
+          </motion.div>
+          {pendingCount > 0 && (
+            <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-sm">
+              {pendingCount > 9 ? '9+' : pendingCount}
+            </span>
+          )}
         </button>
         
         <div className="h-8 w-px bg-slate-100 mx-1 sm:mx-2 hidden sm:block"></div>

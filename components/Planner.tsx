@@ -462,7 +462,8 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       
       const isExplicitlyOpened = adminOverride?.status === 'aberto';
       
-      const isRestrictedTime = isTimeRestricted(timeStr);
+      const openOverride = agendamentos.find(a => a.time === timeStr && a.status === 'aberto');
+      const isRestrictedTime = isTimeRestricted(timeStr) && !openOverride;
       const isPendente = !isAdminView && (
         ((isWeekend || isHoliday || isPastHorizon) && !isExplicitlyOpened) || 
         isRestrictedTime
@@ -558,6 +559,25 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
       fetchBlockedDays(currentDate);
     } catch (err: any) {
       alert('Erro ao bloquear: ' + err.message);
+    }
+  };
+
+  const handleOpenRestrictedSlot = async (time: string) => {
+    if (!user) return;
+    try {
+      const open = {
+        user_id: user.id,
+        client_name: 'Manual Override',
+        service: 'Horário Liberado',
+        date: format(currentDate, 'yyyy-MM-dd'),
+        time,
+        status: 'aberto'
+      };
+      const { error } = await supabase.from('agendamentos').insert([open]);
+      if (error) throw error;
+      fetchAgendamentos(currentDate);
+    } catch (err: any) {
+      alert('Erro ao liberar horário: ' + err.message);
     }
   };
 
@@ -1127,14 +1147,18 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                         const slotItems = agendamentos.filter(a => a.time === time);
                         const blockedItem = slotItems.find(a => a.status === 'bloqueado');
                         const noteItem = slotItems.find(a => a.status === 'nota');
-                        const appointmentItem = slotItems.find(a => a.status !== 'bloqueado' && a.status !== 'nota');
+                        const appointmentItem = slotItems.find(a => !['bloqueado', 'nota', 'aberto'].includes(a.status));
+                        const openOverride = slotItems.find(a => a.status === 'aberto');
 
-                        const isBlockedSlot = !!blockedItem;
                         const isNote = !!noteItem;
                         const isOccupied = !!appointmentItem;
+                        const isRestricted = isTimeRestricted(time) && !openOverride;
+                        
+                        // Natively blocked if in restricted time range and not explicitly opened, 
+                        // and doesn't already have an appointment or note.
+                        const isBlockedSlot = !!blockedItem || (isRestricted && !isNote && !isOccupied);
                         
                         const isMine = appointmentItem?.user_id === user?.id;
-                        const isRestricted = isTimeRestricted(time);
                         const isSelected = selectedSlot === time;
 
                         return (
@@ -1177,7 +1201,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                               {isBlockedSlot ? (
                                 <div className="flex-1 flex items-center justify-between ml-2 bg-slate-50 text-slate-400 opacity-60 px-2 py-0.5 rounded italic">
                                   <div className="flex items-center gap-1">
-                                    {isAdminView && (
+                                    {isAdminView && blockedItem && (
                                       <div 
                                         className={cn("p-1 transition-all rounded", copyModeSource?.id === blockedItem?.id ? "bg-blue-100 text-blue-600 shadow-sm" : "text-slate-300 hover:text-slate-500 cursor-pointer")}
                                         onMouseDown={(e) => {
@@ -1202,8 +1226,12 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                     )}
                                     <span className="text-sm flex items-center gap-1"><AlertOctagon className="w-3 h-3"/> Bloqueado</span>
                                   </div>
-                                  {isAdminView && blockedItem && (
-                                    <button onClick={() => handleCancel(blockedItem.id, true)} className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 text-slate-500 hover:text-slate-800 transition-all">
+                                  {isAdminView && (
+                                    <button 
+                                      onClick={() => blockedItem ? handleCancel(blockedItem.id, true) : handleOpenRestrictedSlot(time)} 
+                                      className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 text-slate-500 hover:text-slate-800 transition-all"
+                                      title="Desbloquear Horário"
+                                    >
                                       <Unlock className="w-3.5 h-3.5" />
                                     </button>
                                   )}
@@ -1415,10 +1443,10 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                         <>
                                           <div className="flex items-center gap-2 mb-2">
                                             <StickyNote className="w-4 h-4 text-amber-500" />
-                                            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">{editingId ? 'Editando Anotação' : 'Nova Anotação Interna'}</span>
+                                            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">{editingId ? 'Editando Anotação' : 'Bloco de Notas:'}</span>
                                           </div>
                                           <textarea 
-                                            placeholder="Digite sua anotação aqui... (Visível apenas para Admin/Dev)"
+                                            placeholder="Digite sua anotação aqui..."
                                             value={freeNote}
                                             onChange={(e) => setFreeNote(e.target.value)}
                                             className="w-full min-h-[80px] bg-amber-50/30 border border-amber-100 p-2 rounded-md outline-none text-xs text-slate-700 focus:border-amber-300 transition-colors resize-none"
