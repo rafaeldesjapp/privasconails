@@ -80,3 +80,55 @@ export async function notifyAdmins(payload: { title: string; body: string; url?:
     console.error('Error in notifyAdmins:', err);
   }
 }
+
+export async function notifyUser(userId: string, payload: { title: string; body: string; url?: string }) {
+  if (!publicKey || !privateKey) return;
+
+  try {
+    const { data: subscriptions } = await supabase
+      .from('push_subscriptions')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (!subscriptions || subscriptions.length === 0) return;
+
+    const results = await Promise.all(subscriptions.map(async (sub) => {
+      const pushSub = {
+        endpoint: sub.endpoint,
+        keys: {
+          auth: sub.auth,
+          p256dh: sub.p256dh
+        }
+      };
+      const res = await sendPushNotification(pushSub, payload);
+      if (res.expired) {
+        await supabase.from('push_subscriptions').delete().eq('id', sub.id);
+      }
+      return res;
+    }));
+
+    return results;
+  } catch (err) {
+    console.error('Error in notifyUser:', err);
+  }
+}
+
+export async function notifyAdminsOfPending() {
+  try {
+    const { count, error } = await supabase
+      .from('solicitacoes')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pendente');
+
+    if (error) throw error;
+    if (!count || count === 0) return;
+
+    await notifyAdmins({
+      title: '📢 Solicitações Pendentes',
+      body: `Você possui ${count} solicitações aguardando resposta no sistema.`,
+      url: '/solicitacoes'
+    });
+  } catch (err) {
+    console.error('Error in notifyAdminsOfPending:', err);
+  }
+}

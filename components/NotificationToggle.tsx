@@ -94,6 +94,14 @@ export default function NotificationToggle() {
 
       setIsSubscribed(true);
       setSubscription(sub);
+      
+      // Chamar recap para enviar notificações de itens já pendentes
+      fetch('/api/notifications/recap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id })
+      }).catch(err => console.error('Erro ao chamar recap:', err));
+
       alert('Sucesso! Você receberá alertas de novas solicitações diretamente no seu dispositivo.');
       
     } catch (err: any) {
