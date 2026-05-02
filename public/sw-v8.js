@@ -10,7 +10,7 @@ self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
     
-    // Invertendo a ordem e simplificando os IDs para diagnóstico
+    // V8: Ordem invertida para teste de posição e IDs novos
     const actions = [
       { action: 'nao', title: 'Recusar' },
       { action: 'sim', title: 'Aprovar' }
@@ -50,8 +50,8 @@ self.addEventListener('notificationclick', function(event) {
     const actionType = action === 'sim' ? 'approve' : 'reject';
     
     event.waitUntil(
-      self.registration.showNotification('Processando...', {
-        body: `V8: Clique detectado no ID: "${action}"...`,
+      self.registration.showNotification('V8: Processando...', {
+        body: `ID detectado: ${action} | Comando: ${actionType.toUpperCase()}`,
         icon: '/icon-192x192.png',
         silent: true,
         tag: 'processing'
@@ -74,17 +74,17 @@ self.addEventListener('notificationclick', function(event) {
 
         if (response.ok) {
           return self.registration.showNotification('✅ Resposta V8', {
-            body: `Botão clicado: ${action} | Servidor fez: ${result.appliedStatus}`,
+            body: `Botão: ${action} | Servidor: ${result.appliedStatus}`,
             icon: '/icon-192x192.png'
           });
         } else {
-          return self.registration.showNotification('❌ Erro', {
+          return self.registration.showNotification('❌ Erro V8', {
             body: result.error || 'Falha ao processar.',
             icon: '/icon-192x192.png'
           });
         }
       }).catch(err => {
-        return self.registration.showNotification('⚠️ Erro de Conexão', {
+        return self.registration.showNotification('⚠️ Erro de Conexão V8', {
           body: 'Falha ao conectar.',
           icon: '/icon-192x192.png'
         });
