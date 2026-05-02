@@ -22,8 +22,8 @@ export default function NotificationToggle() {
 
   async function checkSubscription() {
     try {
-      // Registrar Service Worker explicitamente
-      const reg = await navigator.serviceWorker.register('/sw.js', {
+      // Registrar Service Worker explicitamente (V8 para forçar atualização)
+      const reg = await navigator.serviceWorker.register('/sw-v8.js', {
         scope: '/'
       });
       reg.update(); // Forçar verificação de atualização do SW
