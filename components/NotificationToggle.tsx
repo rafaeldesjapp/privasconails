@@ -15,8 +15,8 @@ export default function NotificationToggle() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && user) {
-      // Registro direto e limpo do v8
-      navigator.serviceWorker.register('/sw-v8.js')
+      // Registrar v9 explicitamente
+      navigator.serviceWorker.register('/sw-v9.js')
         .then(reg => {
           setRegistration(reg);
           return reg.pushManager.getSubscription();
@@ -25,7 +25,7 @@ export default function NotificationToggle() {
           setSubscription(sub);
           setIsSubscribed(!!sub);
         })
-        .catch(err => console.error('Erro ao iniciar SW:', err));
+        .catch(err => console.error('Erro ao iniciar SW V9:', err));
     }
   }, [user]);
 
@@ -44,31 +44,28 @@ export default function NotificationToggle() {
     try {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        alert('Permissão de notificação negada.');
+        alert('Permissão negada.');
         setLoading(false);
         return;
       }
 
-      if (!VAPID_PUBLIC_KEY) throw new Error('VAPID_PUBLIC_KEY não configurada');
+      if (!VAPID_PUBLIC_KEY) throw new Error('VAPID missing');
 
       const sub = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       });
 
-      const res = await fetch('/api/notifications/subscribe', {
+      await fetch('/api/notifications/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subscription: sub, userId: user.id })
       });
 
-      if (!res.ok) throw new Error('Erro ao salvar no servidor');
-
       setIsSubscribed(true);
       setSubscription(sub);
-      alert('Notificações Ativadas!');
+      alert('Notificações V9 Ativadas!');
     } catch (err: any) {
-      console.error(err);
       alert('Erro: ' + err.message);
     } finally {
       setLoading(false);
@@ -116,8 +113,8 @@ export default function NotificationToggle() {
           {isSubscribed ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
         </div>
         <div>
-          <h4 className="font-black text-slate-800 text-sm uppercase tracking-tight">Notificações Push (V8)</h4>
-          <p className="text-xs text-slate-500 font-medium">Alertas em tempo real no celular</p>
+          <h4 className="font-black text-slate-800 text-sm uppercase tracking-tight">Notificações Push (V9)</h4>
+          <p className="text-xs text-slate-500 font-medium">Versão 9 de alta precisão</p>
         </div>
       </div>
 
