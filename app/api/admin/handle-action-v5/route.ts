@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const statusResult = isApprove ? 'agendado' : 'cancelado';
     const solicitacaoResult = isApprove ? 'aprovado' : 'rejeitado';
 
-    console.log(`[ActionV7] Recebido: ${action} | Ag: ${appointmentId}`);
+    console.log(`[ActionV5] Comando: ${action} | Ag: ${appointmentId}`);
 
     // 1. Atualizar agendamento
     const { error: apError } = await supabaseAdmin
@@ -43,15 +43,11 @@ export async function POST(req: Request) {
         .select('id, data')
         .eq('status', 'pendente')
         .contains('data', { appointment_id: appointmentId });
-      
-      if (sols && sols.length > 0) {
-        solToUpdateId = sols[0].id;
-      }
+      if (sols && sols.length > 0) solToUpdateId = sols[0].id;
     }
 
     if (solToUpdateId) {
-      // Buscar dados atuais para não perder campos
-      const { data: currentSol } = await supabaseAdmin
+      const { data: solData } = await supabaseAdmin
         .from('solicitacoes')
         .select('data')
         .eq('id', solToUpdateId)
@@ -62,10 +58,10 @@ export async function POST(req: Request) {
         .update({ 
           status: solicitacaoResult,
           data: {
-            ...(currentSol?.data || {}),
+            ...(solData?.data || {}),
             resolved_at: new Date().toISOString(),
-            resolved_by: 'Action Push v7',
-            resolve_comment: isApprove ? 'Aprovado via Push v7' : 'Recusado via Push v7'
+            resolved_by: 'Action Push v8',
+            resolve_comment: isApprove ? 'Aprovado via Push v8' : 'Recusado via Push v8'
           }
         })
         .eq('id', solToUpdateId);
@@ -74,7 +70,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ 
       success: true, 
       receivedAction: action,
-      appliedStatus: isApprove ? 'APROVADO' : 'RECUSADO' 
+      appliedStatus: solicitacaoResult.toUpperCase() 
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -10,10 +10,10 @@ self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
     
-    // V8: Ordem invertida para teste de posição e IDs novos
+    // Ordem natural com IDs explícitos
     const actions = [
-      { action: 'nao', title: 'Recusar' },
-      { action: 'sim', title: 'Aprovar' }
+      { action: 'aprov_v8', title: 'Aprovar' },
+      { action: 'recus_v8', title: 'Recusar' }
     ];
 
     const options = {
@@ -46,12 +46,13 @@ self.addEventListener('notificationclick', function(event) {
   
   notification.close();
 
-  if (action === 'sim' || action === 'nao') {
-    const actionType = action === 'sim' ? 'approve' : 'reject';
+  // Mapeamento v8 Reforçado
+  if (action === 'aprov_v8' || action === 'recus_v8') {
+    const actionType = action === 'aprov_v8' ? 'approve' : 'reject';
     
     event.waitUntil(
       self.registration.showNotification('V8: Processando...', {
-        body: `ID detectado: ${action} | Comando: ${actionType.toUpperCase()}`,
+        body: `Enviando: ${actionType.toUpperCase()} (ID: ${action})...`,
         icon: '/icon-192x192.png',
         silent: true,
         tag: 'processing'
@@ -73,18 +74,18 @@ self.addEventListener('notificationclick', function(event) {
         });
 
         if (response.ok) {
-          return self.registration.showNotification('✅ Resposta V8', {
-            body: `Botão: ${action} | Servidor: ${result.appliedStatus}`,
+          return self.registration.showNotification('✅ Sucesso!', {
+            body: `ID Recebido: ${action} | Status: ${result.appliedStatus}`,
             icon: '/icon-192x192.png'
           });
         } else {
-          return self.registration.showNotification('❌ Erro V8', {
+          return self.registration.showNotification('❌ Erro', {
             body: result.error || 'Falha ao processar.',
             icon: '/icon-192x192.png'
           });
         }
       }).catch(err => {
-        return self.registration.showNotification('⚠️ Erro de Conexão V8', {
+        return self.registration.showNotification('⚠️ Erro de Conexão', {
           body: 'Falha ao conectar.',
           icon: '/icon-192x192.png'
         });
