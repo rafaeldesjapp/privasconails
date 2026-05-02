@@ -10,10 +10,9 @@ self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
     
-    // Ordem natural com IDs explícitos
     const actions = [
-      { action: 'aprov_v8', title: 'Aprovar' },
-      { action: 'recus_v8', title: 'Recusar' }
+      { action: 'aprov_v9', title: 'Aprovar' },
+      { action: 'recus_v9', title: 'Recusar' }
     ];
 
     const options = {
@@ -34,25 +33,25 @@ self.addEventListener('push', function(event) {
     };
 
     event.waitUntil(
-      self.registration.showNotification(data.title + ' (v8)', options)
+      self.registration.showNotification(data.title + ' (v9)', options)
     );
   }
 });
 
 self.addEventListener('notificationclick', function(event) {
   const notification = event.notification;
-  const action = event.action;
+  const action = event.action || '';
   const data = notification.data || {};
   
   notification.close();
 
-  // Mapeamento v8 Reforçado
-  if (action === 'aprov_v8' || action === 'recus_v8') {
-    const actionType = action === 'aprov_v8' ? 'approve' : 'reject';
+  // Mapeamento v9 Flexível (Busca por palavra-chave para evitar erros de caractere)
+  if (action.includes('aprov') || action.includes('recus')) {
+    const actionType = action.includes('aprov') ? 'approve' : 'reject';
     
     event.waitUntil(
-      self.registration.showNotification('V8: Processando...', {
-        body: `Enviando: ${actionType.toUpperCase()} (ID: ${action})...`,
+      self.registration.showNotification('V9: Processando...', {
+        body: `Lido: "${action}" | Comando: ${actionType.toUpperCase()}`,
         icon: '/icon-192x192.png',
         silent: true,
         tag: 'processing'
@@ -74,8 +73,8 @@ self.addEventListener('notificationclick', function(event) {
         });
 
         if (response.ok) {
-          return self.registration.showNotification('✅ Sucesso!', {
-            body: `ID Recebido: ${action} | Status: ${result.appliedStatus}`,
+          return self.registration.showNotification('✅ Resposta V9', {
+            body: `ID: "${action}" | Servidor: ${result.appliedStatus}`,
             icon: '/icon-192x192.png'
           });
         } else {

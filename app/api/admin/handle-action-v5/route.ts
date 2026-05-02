@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const statusResult = isApprove ? 'agendado' : 'cancelado';
     const solicitacaoResult = isApprove ? 'aprovado' : 'rejeitado';
 
-    console.log(`[ActionV5] Comando: ${action} | Ag: ${appointmentId}`);
+    console.log(`[ActionV9] Comando: ${action} | Ag: ${appointmentId}`);
 
     // 1. Atualizar agendamento
     const { error: apError } = await supabaseAdmin
@@ -60,8 +60,8 @@ export async function POST(req: Request) {
           data: {
             ...(solData?.data || {}),
             resolved_at: new Date().toISOString(),
-            resolved_by: 'Action Push v8',
-            resolve_comment: isApprove ? 'Aprovado via Push v8' : 'Recusado via Push v8'
+            resolved_by: 'Action Push v9',
+            resolve_comment: isApprove ? 'Aprovado via Push v9' : 'Recusado via Push v9'
           }
         })
         .eq('id', solToUpdateId);
