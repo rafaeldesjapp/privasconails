@@ -1420,9 +1420,14 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                                 </button>
                                               )}
                                               {isAdminView && appointmentItem!.status === 'pendente_autorizacao' && (
-                                                <button onClick={() => handleStatusChange(appointmentItem!.id, 'agendado')} className="p-1 text-green-500 hover:bg-green-100 flex items-center gap-1 rounded transition-colors" title="Autorizar Agendamento">
-                                                  <CheckCircle2 className="w-4 h-4" />
-                                                </button>
+                                                <div className="flex items-center gap-1">
+                                                  <button onClick={() => handleStatusChange(appointmentItem!.id, 'agendado')} className="p-1 text-green-500 hover:bg-green-100 flex items-center gap-1 rounded transition-colors" title="Autorizar Agendamento">
+                                                    <CheckCircle2 className="w-4 h-4" />
+                                                  </button>
+                                                  <button onClick={() => handleStatusChange(appointmentItem!.id, 'cancelado')} className="p-1 text-red-500 hover:bg-red-100 flex items-center gap-1 rounded transition-colors" title="Recusar Agendamento">
+                                                    <X className="w-4 h-4" />
+                                                  </button>
+                                                </div>
                                               )}
                                               {isAdminView && appointmentItem!.status !== 'concluido' && appointmentItem!.status !== 'pendente_dinheiro' && appointmentItem!.status !== 'pendente_autorizacao' && (
                                                 <button onClick={() => setCheckoutData(appointmentItem!)} className="p-1 text-green-600 hover:bg-green-200 rounded transition-colors" title="Finalizar Atendimento">
