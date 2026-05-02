@@ -10,10 +10,10 @@ self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
     
-    // IDs ultra-simples para diagnóstico
+    // Simplificação máxima para evitar conflitos de cache no Android
     const actions = [
-      { action: 'BOT_YES', title: 'Aprovar ✅' },
-      { action: 'BOT_NO', title: 'Recusar ❌' }
+      { action: 'sim', title: 'Aprovar' },
+      { action: 'nao', title: 'Recusar' }
     ];
 
     const options = {
@@ -21,7 +21,8 @@ self.addEventListener('push', function(event) {
       icon: '/icon-192x192.png',
       badge: '/icon.svg',
       vibrate: [100, 50, 100],
-      tag: 'appointment-request-final-v6',
+      // Tag dinâmica para forçar o sistema a ler as novas ações a cada notificação
+      tag: 'req-' + Date.now(),
       renotify: true,
       requireInteraction: true,
       data: {
@@ -34,7 +35,7 @@ self.addEventListener('push', function(event) {
     };
 
     event.waitUntil(
-      self.registration.showNotification(data.title + ' (v6)', options)
+      self.registration.showNotification(data.title + ' (v7)', options)
     );
   }
 });
@@ -46,8 +47,8 @@ self.addEventListener('notificationclick', function(event) {
   
   notification.close();
 
-  if (action === 'BOT_YES' || action === 'BOT_NO') {
-    const actionType = action === 'BOT_YES' ? 'approve' : 'reject';
+  if (action === 'sim' || action === 'nao') {
+    const actionType = action === 'sim' ? 'approve' : 'reject';
     
     event.waitUntil(
       self.registration.showNotification('Processando...', {
@@ -68,14 +69,14 @@ self.addEventListener('notificationclick', function(event) {
       }).then(async response => {
         const result = await response.json();
         
-        // Limpar processamento
+        // Fechar processamento
         self.registration.getNotifications({ tag: 'processing' }).then(notifications => {
           notifications.forEach(n => n.close());
         });
 
         if (response.ok) {
-          return self.registration.showNotification('✅ Resposta do Servidor', {
-            body: `Recebido: ${result.receivedAction} | Status: ${result.appliedStatus}`,
+          return self.registration.showNotification('✅ Sucesso!', {
+            body: `Servidor confirmou: ${result.appliedStatus}`,
             icon: '/icon-192x192.png'
           });
         } else {

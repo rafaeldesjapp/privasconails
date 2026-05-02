@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const statusResult = isApprove ? 'agendado' : 'cancelado';
     const solicitacaoResult = isApprove ? 'aprovado' : 'rejeitado';
 
-    console.log(`[ActionV5] Recebido: ${action} | Ag: ${appointmentId}`);
+    console.log(`[ActionV7] Recebido: ${action} | Ag: ${appointmentId}`);
 
     // 1. Atualizar agendamento
     const { error: apError } = await supabaseAdmin
@@ -40,14 +40,18 @@ export async function POST(req: Request) {
     if (!solToUpdateId) {
       const { data: sols } = await supabaseAdmin
         .from('solicitacoes')
-        .select('id')
+        .select('id, data')
         .eq('status', 'pendente')
         .contains('data', { appointment_id: appointmentId });
-      if (sols && sols.length > 0) solToUpdateId = sols[0].id;
+      
+      if (sols && sols.length > 0) {
+        solToUpdateId = sols[0].id;
+      }
     }
 
     if (solToUpdateId) {
-      const { data: solData } = await supabaseAdmin
+      // Buscar dados atuais para não perder campos
+      const { data: currentSol } = await supabaseAdmin
         .from('solicitacoes')
         .select('data')
         .eq('id', solToUpdateId)
@@ -58,20 +62,19 @@ export async function POST(req: Request) {
         .update({ 
           status: solicitacaoResult,
           data: {
-            ...(solData?.data || {}),
+            ...(currentSol?.data || {}),
             resolved_at: new Date().toISOString(),
-            resolved_by: 'Action Push v6',
-            resolve_comment: isApprove ? 'Aprovado via Push v6' : 'Recusado via Push v6'
+            resolved_by: 'Action Push v7',
+            resolve_comment: isApprove ? 'Aprovado via Push v7' : 'Recusado via Push v7'
           }
         })
         .eq('id', solToUpdateId);
     }
 
-    // Retornamos o que foi processado para o celular mostrar na notificação
     return NextResponse.json({ 
       success: true, 
       receivedAction: action,
-      appliedStatus: solicitacaoResult.toUpperCase() 
+      appliedStatus: isApprove ? 'APROVADO' : 'RECUSADO' 
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
