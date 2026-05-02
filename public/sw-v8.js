@@ -45,7 +45,7 @@ self.addEventListener('notificationclick', function(event) {
   
   notification.close();
 
-  // Mapeamento v9 Flexível (Busca por palavra-chave para evitar erros de caractere)
+  // Mapeamento v9 Flexível (Busca por palavra-chave)
   if (action.includes('aprov') || action.includes('recus')) {
     const actionType = action.includes('aprov') ? 'approve' : 'reject';
     

@@ -12,41 +12,22 @@ export default function NotificationToggle() {
   const [loading, setLoading] = useState(false);
   const [subscription, setSubscription] = useState<PushSubscription | null>(null);
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && user) {
-      checkSubscription();
+      // Registro direto e limpo do v8
+      navigator.serviceWorker.register('/sw-v8.js')
+        .then(reg => {
+          setRegistration(reg);
+          return reg.pushManager.getSubscription();
+        })
+        .then(sub => {
+          setSubscription(sub);
+          setIsSubscribed(!!sub);
+        })
+        .catch(err => console.error('Erro ao iniciar SW:', err));
     }
   }, [user]);
-
-  async function checkSubscription() {
-    try {
-      // FORÇAR LIMPEZA: Remover qualquer Service Worker antigo
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      for (let reg of registrations) {
-        if (!reg.active?.scriptURL.includes('sw-v8.js')) {
-          console.log('Limpando SW antigo:', reg.active?.scriptURL);
-          await reg.unregister();
-        }
-      }
-
-      // Registrar o NOVO Service Worker V8
-      const reg = await navigator.serviceWorker.register('/sw-v8.js', {
-        scope: '/'
-      });
-      
-      await reg.update();
-      setRegistration(reg);
-      
-      const sub = await reg.pushManager.getSubscription();
-      setSubscription(sub);
-      setIsSubscribed(!!sub);
-    } catch (err: any) {
-      console.error('Erro ao verificar Service Worker:', err);
-      setError('Erro ao carregar notificações V8.');
-    }
-  }
 
   async function toggleNotifications() {
     if (isSubscribed) {
@@ -57,22 +38,18 @@ export default function NotificationToggle() {
   }
 
   async function subscribe() {
-    if (!registration || !user) {
-      alert('Aguarde o carregamento do sistema V8...');
-      return;
-    }
+    if (!registration || !user) return;
     setLoading(true);
-    setError(null);
 
     try {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        alert('Permissão Negada.');
+        alert('Permissão de notificação negada.');
         setLoading(false);
         return;
       }
 
-      if (!VAPID_PUBLIC_KEY) throw new Error('VAPID missing');
+      if (!VAPID_PUBLIC_KEY) throw new Error('VAPID_PUBLIC_KEY não configurada');
 
       const sub = await registration.pushManager.subscribe({
         userVisibleOnly: true,
@@ -85,15 +62,14 @@ export default function NotificationToggle() {
         body: JSON.stringify({ subscription: sub, userId: user.id })
       });
 
-      if (!res.ok) throw new Error('Erro no servidor');
+      if (!res.ok) throw new Error('Erro ao salvar no servidor');
 
       setIsSubscribed(true);
       setSubscription(sub);
-      
-      alert('Notificações V8 Ativadas!');
+      alert('Notificações Ativadas!');
     } catch (err: any) {
+      console.error(err);
       alert('Erro: ' + err.message);
-      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -114,7 +90,7 @@ export default function NotificationToggle() {
       setSubscription(null);
       alert('Notificações desativadas.');
     } catch (err: any) {
-      alert('Erro: ' + err.message);
+      alert('Erro ao desativar.');
     } finally {
       setLoading(false);
     }
@@ -131,6 +107,8 @@ export default function NotificationToggle() {
     return outputArray;
   }
 
+  if (!user || (role !== 'admin' && role !== 'desenvolvedor')) return null;
+
   return (
     <div className="bg-white p-4 rounded-2xl border-2 border-pink-100 shadow-sm mb-6 flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -139,7 +117,7 @@ export default function NotificationToggle() {
         </div>
         <div>
           <h4 className="font-black text-slate-800 text-sm uppercase tracking-tight">Notificações Push (V8)</h4>
-          <p className="text-xs text-slate-500 font-medium">Versão forçada de alta estabilidade</p>
+          <p className="text-xs text-slate-500 font-medium">Alertas em tempo real no celular</p>
         </div>
       </div>
 
