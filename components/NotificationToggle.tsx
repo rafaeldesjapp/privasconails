@@ -15,8 +15,8 @@ export default function NotificationToggle() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && user) {
-      // Registro V11: Lógica Invertida para Xiaomi
-      navigator.serviceWorker.register('/sw-v11.js')
+      // Registrar V12
+      navigator.serviceWorker.register('/sw-v12.js')
         .then(reg => {
           setRegistration(reg);
           return reg.pushManager.getSubscription();
@@ -25,7 +25,7 @@ export default function NotificationToggle() {
           setSubscription(sub);
           setIsSubscribed(!!sub);
         })
-        .catch(err => console.error('Erro SW V11:', err));
+        .catch(err => console.error('Erro SW V12:', err));
     }
   }, [user]);
 
@@ -64,7 +64,7 @@ export default function NotificationToggle() {
 
       setIsSubscribed(true);
       setSubscription(sub);
-      alert('Notificações V11 Ativadas!');
+      alert('Notificações V12 Ativadas!');
     } catch (err: any) {
       alert('Erro: ' + err.message);
     } finally {
@@ -113,8 +113,8 @@ export default function NotificationToggle() {
           {isSubscribed ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
         </div>
         <div>
-          <h4 className="font-black text-slate-800 text-sm uppercase tracking-tight">Notificações Push (V11)</h4>
-          <p className="text-xs text-slate-500 font-medium">Correção de precisão para Xiaomi</p>
+          <h4 className="font-black text-slate-800 text-sm uppercase tracking-tight">Notificações Push (V12)</h4>
+          <p className="text-xs text-slate-500 font-medium">Correção definitiva de botões</p>
         </div>
       </div>
 
