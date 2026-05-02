@@ -10,10 +10,10 @@ self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
     
-    // Versão 8: Mudança total de nomes para forçar o navegador a recarregar
+    // Invertendo a ordem e simplificando os IDs para diagnóstico
     const actions = [
-      { action: 'sim', title: 'Aprovar' },
-      { action: 'nao', title: 'Recusar' }
+      { action: 'nao', title: 'Recusar' },
+      { action: 'sim', title: 'Aprovar' }
     ];
 
     const options = {
@@ -46,13 +46,12 @@ self.addEventListener('notificationclick', function(event) {
   
   notification.close();
 
-  // Mapeamento v8
   if (action === 'sim' || action === 'nao') {
     const actionType = action === 'sim' ? 'approve' : 'reject';
     
     event.waitUntil(
       self.registration.showNotification('Processando...', {
-        body: `V8: Enviando ${actionType.toUpperCase()} (ID: ${action})...`,
+        body: `V8: Clique detectado no ID: "${action}"...`,
         icon: '/icon-192x192.png',
         silent: true,
         tag: 'processing'
@@ -74,8 +73,8 @@ self.addEventListener('notificationclick', function(event) {
         });
 
         if (response.ok) {
-          return self.registration.showNotification('✅ Sucesso!', {
-            body: `Servidor confirmou V8: ${result.appliedStatus}`,
+          return self.registration.showNotification('✅ Resposta V8', {
+            body: `Botão clicado: ${action} | Servidor fez: ${result.appliedStatus}`,
             icon: '/icon-192x192.png'
           });
         } else {
