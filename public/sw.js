@@ -10,18 +10,16 @@ self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
     
-    // Simplificação máxima para evitar conflitos de cache no Android
+    // Versão Consolidada: Lógica de botão único (mais estável para Android/Xiaomi)
     const actions = [
-      { action: 'sim', title: 'Aprovar' },
-      { action: 'nao', title: 'Recusar' }
+      { action: 'approve', title: '✅ APROVAR AGENDAMENTO' }
     ];
 
     const options = {
-      body: data.body,
+      body: data.body + '\n\n(Dica: Toque aqui no texto para RECUSAR)',
       icon: '/icon-192x192.png',
       badge: '/icon.svg',
       vibrate: [100, 50, 100],
-      // Tag dinâmica para forçar o sistema a ler as novas ações a cada notificação
       tag: 'req-' + Date.now(),
       renotify: true,
       requireInteraction: true,
@@ -35,7 +33,7 @@ self.addEventListener('push', function(event) {
     };
 
     event.waitUntil(
-      self.registration.showNotification(data.title + ' (v7)', options)
+      self.registration.showNotification(data.title, options)
     );
   }
 });
@@ -47,12 +45,11 @@ self.addEventListener('notificationclick', function(event) {
   
   notification.close();
 
-  if (action === 'sim' || action === 'nao') {
-    const actionType = action === 'sim' ? 'approve' : 'reject';
-    
+  // Se clicou no botão APROVAR
+  if (action === 'approve') {
     event.waitUntil(
-      self.registration.showNotification('Processando...', {
-        body: `Enviando: ${actionType.toUpperCase()} (ID: ${action})...`,
+      self.registration.showNotification('Processando Aprovação...', {
+        body: 'Aguarde um instante...',
         icon: '/icon-192x192.png',
         silent: true,
         tag: 'processing'
@@ -63,36 +60,52 @@ self.addEventListener('notificationclick', function(event) {
           body: JSON.stringify({ 
             appointmentId: data.appointmentId, 
             solicitationId: data.solicitationId, 
-            action: actionType 
+            action: 'approve' 
           })
         });
       }).then(async response => {
         const result = await response.json();
-        
-        // Fechar processamento
-        self.registration.getNotifications({ tag: 'processing' }).then(notifications => {
-          notifications.forEach(n => n.close());
-        });
+        self.registration.getNotifications({ tag: 'processing' }).then(n => n.forEach(x => x.close()));
 
         if (response.ok) {
-          return self.registration.showNotification('✅ Sucesso!', {
-            body: `Servidor confirmou: ${result.appliedStatus}`,
-            icon: '/icon-192x192.png'
-          });
-        } else {
-          return self.registration.showNotification('❌ Erro', {
-            body: result.error || 'Falha ao processar.',
+          return self.registration.showNotification('✅ Agendamento Aprovado', {
+            body: `Status atualizado para: ${result.appliedStatus}`,
             icon: '/icon-192x192.png'
           });
         }
-      }).catch(err => {
-        return self.registration.showNotification('⚠️ Erro de Conexão', {
-          body: 'Falha ao conectar.',
-          icon: '/icon-192x192.png'
-        });
       })
     );
-  } else {
-    event.waitUntil(clients.openWindow(data.url || '/solicitacoes'));
+  } 
+  // Se clicou no corpo da notificação (Ação de RECUSA na lógica consolidada)
+  else {
+    event.waitUntil(
+      self.registration.showNotification('Processando Recusa...', {
+        body: 'Cancelando agendamento...',
+        icon: '/icon-192x192.png',
+        silent: true,
+        tag: 'processing'
+      }).then(() => {
+        return fetch('/api/admin/handle-action-v5', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            appointmentId: data.appointmentId, 
+            solicitationId: data.solicitationId, 
+            action: 'reject' 
+          })
+        });
+      }).then(async response => {
+        const result = await response.json();
+        self.registration.getNotifications({ tag: 'processing' }).then(n => n.forEach(x => x.close()));
+
+        if (response.ok) {
+          self.registration.showNotification('❌ Agendamento Recusado', {
+            body: `Status atualizado para: ${result.appliedStatus}`,
+            icon: '/icon-192x192.png'
+          });
+        }
+        return clients.openWindow(data.url || '/solicitacoes');
+      })
+    );
   }
 });

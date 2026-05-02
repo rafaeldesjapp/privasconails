@@ -15,8 +15,8 @@ export default function NotificationToggle() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && user) {
-      // Registro V13
-      navigator.serviceWorker.register('/sw-v13.js')
+      // Registro permanente do Service Worker consolidado
+      navigator.serviceWorker.register('/sw.js')
         .then(reg => {
           setRegistration(reg);
           return reg.pushManager.getSubscription();
@@ -25,7 +25,7 @@ export default function NotificationToggle() {
           setSubscription(sub);
           setIsSubscribed(!!sub);
         })
-        .catch(err => console.error('Erro SW V13:', err));
+        .catch(err => console.error('Erro ao registrar notificações:', err));
     }
   }, [user]);
 
@@ -44,28 +44,31 @@ export default function NotificationToggle() {
     try {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        alert('Permissão negada.');
+        alert('Permissão de notificação negada.');
         setLoading(false);
         return;
       }
 
-      if (!VAPID_PUBLIC_KEY) throw new Error('VAPID missing');
+      if (!VAPID_PUBLIC_KEY) throw new Error('VAPID_PUBLIC_KEY não configurada');
 
       const sub = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       });
 
-      await fetch('/api/notifications/subscribe', {
+      const res = await fetch('/api/notifications/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subscription: sub, userId: user.id })
       });
 
+      if (!res.ok) throw new Error('Erro ao salvar no servidor');
+
       setIsSubscribed(true);
       setSubscription(sub);
-      alert('Notificações V13 Ativadas!');
+      alert('Notificações ativadas com sucesso!');
     } catch (err: any) {
+      console.error(err);
       alert('Erro: ' + err.message);
     } finally {
       setLoading(false);
@@ -113,8 +116,8 @@ export default function NotificationToggle() {
           {isSubscribed ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
         </div>
         <div>
-          <h4 className="font-black text-slate-800 text-sm uppercase tracking-tight">Notificações Push (V13)</h4>
-          <p className="text-xs text-slate-500 font-medium">Lógica de botão único para Xiaomi</p>
+          <h4 className="font-black text-slate-800 text-sm uppercase tracking-tight">Notificações Push</h4>
+          <p className="text-xs text-slate-500 font-medium">Alertas em tempo real no celular</p>
         </div>
       </div>
 

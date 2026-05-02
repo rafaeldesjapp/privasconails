@@ -1291,6 +1291,7 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                       className={cn(
                                       "flex-1 flex items-center justify-between px-3 py-1 rounded-lg ml-2",
                                       appointmentItem!.status === 'concluido' ? 'bg-[url("https://www.transparenttextures.com/patterns/diagonal-stripes.png")] bg-green-100 text-green-700 font-bold border border-green-200' :
+                                      appointmentItem!.status === 'cancelado' ? 'bg-slate-50 text-slate-400 border border-slate-200 opacity-80' :
                                       isMine || isAdminView ? 'bg-gradient-to-r from-rose-100 to-orange-100 text-rose-700 shadow-sm border border-rose-200 cursor-move' : 'bg-slate-100 text-slate-500 line-through',
                                       appointmentItem!.service.includes('(Continuação)') && 'opacity-50'
                                     )}>
@@ -1397,6 +1398,11 @@ export default function Planner({ role, user, isAdminView = false }: PlannerProp
                                             {appointmentItem!.status === 'pendente_autorizacao' && (
                                               <span className="ml-2 px-1.5 py-0.5 rounded-full bg-amber-200 text-[9px] font-black uppercase tracking-widest text-amber-800 flex items-center gap-1 shadow-sm shrink-0">
                                                 <Clock className="w-3 h-3" /> Aguardando Autorização
+                                              </span>
+                                            )}
+                                            {appointmentItem!.status === 'cancelado' && (
+                                              <span className="ml-2 px-1.5 py-0.5 rounded-full bg-red-100 text-[9px] font-black uppercase tracking-widest text-red-600 flex items-center gap-1 shadow-sm shrink-0">
+                                                <X className="w-3 h-3" /> Rejeitado
                                               </span>
                                             )}
                                             {appointmentItem!.status === 'concluido' && (
