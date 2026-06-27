@@ -9,3 +9,8 @@ coverage/
 # Environment files
 *.env
 *.env.*
+
+certificates
+scratch/
+*.sql
+*.tsbuildinfo

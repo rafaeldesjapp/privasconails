@@ -25,13 +25,14 @@ import {
   Smartphone,
   History,
   Zap,
-  RotateCcw
+  RotateCcw,
+  RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { initMercadoPago, Payment, Wallet } from '@mercadopago/sdk-react';
 
-// Inicializa o Mercado Pago SDK com uma chave pública embutida ou de env
-initMercadoPago(process.env.NEXT_PUBLIC_MP_PUBLIC_KEY || 'TEST-33923f17-b080-455b-bfb3-cd98decf5960', { locale: 'pt-BR' });
+// Inicializa o Mercado Pago SDK dinamicamente no cliente via useEffect quando a chave pública é carregada.
+// initMercadoPago(process.env.NEXT_PUBLIC_MP_PUBLIC_KEY || 'TEST-33923f17-b080-455b-bfb3-cd98decf5960', { locale: 'pt-BR' });
 
 // Utilizando a engine do Planner
 const parseServicesObj = (str: string) => {
@@ -80,9 +81,17 @@ function ContaContent() {
   // Novos Estados de Pagamento
   const [allowTab, setAllowTab] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
-  const [pixData, setPixData] = useState<{qr_code: string, qr_code_base64: string, payment_id?: string} | null>(null);
+  const [pixData, setPixData] = useState<{qr_code: string, qr_code_base64: string, payment_id?: string, gateway?: string} | null>(null);
   const [creatingPreference, setCreatingPreference] = useState(false);
   const [walletPreferenceId, setWalletPreferenceId] = useState<string | null>(null);
+  const [selectedInstallments, setSelectedInstallments] = useState(1);
+  const [activeGateway, setActiveGateway] = useState('mercado_pago');
+  const [selectedGateway, setSelectedGateway] = useState<'mercado_pago' | 'asaas'>('mercado_pago');
+  const [hasMercadoPago, setHasMercadoPago] = useState(false);
+  const [hasAsaas, setHasAsaas] = useState(false);
+  const [mpPublicKey, setMpPublicKey] = useState('');
+  const showGatewaySwitcher = activeGateway === 'parallel' && hasMercadoPago && hasAsaas;
+  const currentGateway = showGatewaySwitcher ? selectedGateway : activeGateway;
   const [isPointLoading, setIsPointLoading] = useState(false);
   const [showSmartModal, setShowSmartModal] = useState(false);
   const [smartPayData, setSmartPayData] = useState<{
@@ -101,6 +110,30 @@ function ContaContent() {
 
   const [isPolling, setIsPolling] = useState(false);
   const [showManualSteps, setShowManualSteps] = useState(false);
+
+  // Estados do formulário de cartão de crédito transparente Asaas
+  const [cardHolderName, setCardHolderName] = useState('');
+  const [savedCpf, setSavedCpf] = useState('');
+  const [savedCardToken, setSavedCardToken] = useState('');
+  const [savedCardBrand, setSavedCardBrand] = useState('');
+  const [savedCardLastDigits, setSavedCardLastDigits] = useState('');
+  const [useSavedCard, setUseSavedCard] = useState(false);
+  const [saveNewCard, setSaveNewCard] = useState(true);
+  const [mpCardsIds, setMpCardsIds] = useState<string[]>([]);
+  const [mpCustomerId, setMpCustomerId] = useState('');
+  
+  useEffect(() => {
+    if (mpPublicKey) {
+      initMercadoPago(mpPublicKey, { locale: 'pt-BR' });
+    }
+  }, [mpPublicKey]);
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  const [cardCpf, setCardCpf] = useState('');
+  const [cardCep, setCardCep] = useState('');
+  const [cardAddressNum, setCardAddressNum] = useState('');
+  const [cardPhone, setCardPhone] = useState('');
 
   const handlePointPayment = async () => {
     try {
@@ -245,14 +278,14 @@ function ContaContent() {
       intervalId = setInterval(async () => {
         try {
           const apIds = billingItems.map(b => b.id).join(',');
-          const req = await fetch(`/api/pagamentos/check-status?paymentId=${pixData.payment_id}&appointmentIds=${apIds}`);
+          const req = await fetch(`/api/pagamentos/check-status?paymentId=${pixData.payment_id}&appointmentIds=${apIds}&gateway=${pixData.gateway || currentGateway}`);
           
           if (req.ok) {
             const res = await req.json();
             
             if (res.status === 'approved') {
                clearInterval(intervalId);
-               alert('Pagamento Automático via PIX Confirmado com Sucesso!');
+               alert('Pagamento Confirmado com Sucesso!');
                setPixData(null);
                
                if (role === 'admin' || role === 'desenvolvedor') {
@@ -272,7 +305,7 @@ function ContaContent() {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [pixData, billingItems, role, user]);
+  }, [pixData, billingItems, role, user, currentGateway]);
 
   useEffect(() => {
     if (!user) return;
@@ -327,6 +360,16 @@ function ContaContent() {
       const res = await response.json();
 
       let dataValor = res?.data?.tabela_precos;
+      const activeGateVal = res?.data?.ACTIVE_GATEWAY;
+      if (activeGateVal) {
+         setActiveGateway(activeGateVal);
+         if (activeGateVal === 'asaas' || activeGateVal === 'mercado_pago') {
+            setSelectedGateway(activeGateVal);
+         }
+      }
+      setHasMercadoPago(!!res?.data?.hasMercadoPago);
+      setHasAsaas(!!res?.data?.hasAsaas);
+      setMpPublicKey(res?.data?.mpPublicKey || '');
       
       if (typeof dataValor === 'string') {
          try {
@@ -355,10 +398,63 @@ function ContaContent() {
   const fetchBill = async (targetId: string) => {
     setViewState('loading');
     
-    // Busca a permissão de fiado do usuário
-    if (role === 'cliente') {
-       const { data: profile } = await supabase.from('profiles').select('allow_tab').eq('id', targetId).single();
-       if (profile?.allow_tab) setAllowTab(true);
+    // Busca a permissão de fiado, CPF e dados de cartão salvo do usuário
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('allow_tab, cpf, asaas_card_token, asaas_card_brand, asaas_card_last_digits, mp_customer_id')
+      .eq('id', targetId)
+      .single();
+      
+    if (profile) {
+      if (profile.allow_tab) setAllowTab(true);
+      else setAllowTab(false);
+      
+      setSavedCpf(profile.cpf || '');
+      setSavedCardToken(profile.asaas_card_token || '');
+      setSavedCardBrand(profile.asaas_card_brand || '');
+      setSavedCardLastDigits(profile.asaas_card_last_digits || '');
+      
+      if (profile.asaas_card_token) {
+        setUseSavedCard(true);
+      } else {
+        setUseSavedCard(false);
+      }
+      
+      if (profile.cpf) {
+        setCardCpf(profile.cpf);
+      } else {
+        setCardCpf('');
+      }
+
+      let mpId = profile.mp_customer_id || '';
+      setMpCustomerId(mpId);
+      
+      if (mpId) {
+        try {
+          const cardsRes = await fetch(`/api/pagamentos/get-customer-cards?userId=${targetId}`);
+          if (cardsRes.ok) {
+            const cardsData = await cardsRes.json();
+            setMpCardsIds(cardsData.cardsIds || []);
+          } else {
+            setMpCardsIds([]);
+          }
+        } catch (e) {
+          console.error("Erro ao buscar cartões MP:", e);
+          setMpCardsIds([]);
+        }
+      } else {
+        setMpCardsIds([]);
+      }
+    } else {
+      setAllowTab(false);
+      setSavedCpf('');
+      setSavedCardToken('');
+      setSavedCardBrand('');
+      setSavedCardLastDigits('');
+      setUseSavedCard(false);
+      setCardCpf('');
+      setMpCustomerId('');
+      setMpCardsIds([]);
     }
     
     // Pegando todos da agenda que estao agendados ou pendentes
@@ -708,6 +804,31 @@ function ContaContent() {
                       <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm animate-fade-in space-y-3">
                         <h3 className="text-center font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 text-sm">Como você deseja {isStaff ? 'receber' : 'pagar'}?</h3>
                         
+                        {showGatewaySwitcher && !pixData && (
+                           <div className="flex gap-2 p-1 bg-slate-100/80 rounded-xl mb-4 border border-slate-200 shadow-inner">
+                             <button 
+                               type="button"
+                               onClick={() => setSelectedGateway('mercado_pago')}
+                               className={cn(
+                                 "flex-1 py-2 text-xs font-black rounded-lg transition-all capitalize tracking-wide shadow-sm flex items-center justify-center gap-1.5",
+                                 selectedGateway === 'mercado_pago' ? "bg-white text-blue-700 border border-slate-200/50" : "text-slate-500 hover:text-slate-800 bg-transparent shadow-none"
+                               )}
+                             >
+                               Mercado Pago
+                             </button>
+                             <button 
+                               type="button"
+                               onClick={() => setSelectedGateway('asaas')}
+                               className={cn(
+                                 "flex-1 py-2 text-xs font-black rounded-lg transition-all capitalize tracking-wide shadow-sm flex items-center justify-center gap-1.5",
+                                 selectedGateway === 'asaas' ? "bg-white text-blue-700 border border-slate-200/50" : "text-slate-500 hover:text-slate-800 bg-transparent shadow-none"
+                               )}
+                             >
+                               Asaas
+                             </button>
+                           </div>
+                         )}
+
                         {/* CHECKOUT TRANSPARENTE: MERCADO PAGO PAYMENT BRICK */}
                         {pixData && (
                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col items-center gap-4 text-center my-4 relative z-10 w-full animate-in fade-in zoom-in duration-300">
@@ -776,7 +897,8 @@ function ContaContent() {
                                       payer: { email: user?.email || 'cliente@privasconails.com' },
                                       appointmentIds: billingItems.map((b: any) => b.id),
                                       userId: selectedClient?.id || user?.id,
-                                      clientName: selectedClient?.name || user?.user_metadata?.full_name || 'Desconhecido'
+                                      clientName: selectedClient?.name || user?.user_metadata?.full_name || 'Desconhecido',
+                                      gateway: currentGateway,
                                     };
                                     
                                     const req = await fetch("/api/pagamentos/process-payment", {
@@ -789,7 +911,7 @@ function ContaContent() {
                                     if (response.error) {
                                        alert("Falha ao gerar PIX: " + response.error);
                                     } else if (response.status === 'pending' && response.qr_code) {
-                                       setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64, payment_id: response.id });
+                                       setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64, payment_id: response.id, gateway: currentGateway });
                                     } else {
                                        alert("Status Inesperado: " + response.status);
                                     }
@@ -806,80 +928,459 @@ function ContaContent() {
                               </button>
                         )}
 
-                              <div className="text-center text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest opacity-60">— {isStaff ? 'Receba' : 'Pague'} com Cartão —</div>
+                        {currentGateway === 'asaas' ? (
+                          <div className="w-full">
+                            <div className="text-center text-xs font-bold text-slate-400 mb-2 mt-4 uppercase tracking-widest opacity-60">— Cartão de Crédito / Asaas —</div>
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col gap-4 my-4 relative z-10 w-full animate-in fade-in zoom-in duration-300">
+                              <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-2 justify-center">
+                                <CreditCard className="w-6 h-6 text-indigo-600" />
+                                <h4 className="font-bold text-slate-800">Checkout Transparente</h4>
+                              </div>
 
-                              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-4 relative z-10 w-full">
-                               <Payment
-                                 initialization={{
-                                   amount: Number(total.toFixed(2)),
-                                   payer: {
-                                     email: user?.email || 'cliente@privasconails.com'
+                              {savedCardToken && (
+                                <label className="flex items-center gap-3 p-3 bg-indigo-50/50 border border-indigo-200/50 rounded-xl cursor-pointer hover:bg-indigo-50 transition-colors mb-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={useSavedCard}
+                                    onChange={(e) => setUseSavedCard(e.target.checked)}
+                                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                  />
+                                  <div className="text-left">
+                                    <p className="text-xs font-black text-slate-800">Usar cartão de crédito salvo</p>
+                                    <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider">
+                                      {savedCardBrand} final **** {savedCardLastDigits}
+                                    </p>
+                                  </div>
+                                </label>
+                              )}
+
+                              {!useSavedCard ? (
+                                <div className="space-y-3 text-left">
+                                  <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Nome no Cartão</label>
+                                    <input 
+                                      type="text" 
+                                      placeholder="NOME IMPRESSO NO CARTÃO"
+                                      value={cardHolderName}
+                                      onChange={(e) => setCardHolderName(e.target.value.toUpperCase())}
+                                      className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 outline-none text-sm font-semibold uppercase placeholder:text-slate-300"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Número do Cartão</label>
+                                    <input 
+                                      type="text" 
+                                      placeholder="0000 0000 0000 0000"
+                                      value={cardNumber}
+                                      onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, '').substring(0, 16);
+                                        const formatted = val.replace(/(\d{4})(?=\d)/g, '$1 ');
+                                        setCardNumber(formatted);
+                                      }}
+                                      className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 outline-none text-sm font-semibold placeholder:text-slate-300"
+                                    />
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="text-xs font-bold text-slate-500 uppercase">Validade</label>
+                                      <input 
+                                        type="text" 
+                                        placeholder="MM/AA"
+                                        value={cardExpiry}
+                                        onChange={(e) => {
+                                          const val = e.target.value.replace(/\D/g, '').substring(0, 4);
+                                          let formatted = val;
+                                          if (val.length > 2) {
+                                            formatted = `${val.substring(0, 2)}/${val.substring(2)}`;
+                                          }
+                                          setCardExpiry(formatted);
+                                        }}
+                                        className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 outline-none text-sm font-semibold placeholder:text-slate-300 text-center"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-xs font-bold text-slate-500 uppercase">CVC / CVV</label>
+                                      <input 
+                                        type="password" 
+                                        placeholder="123"
+                                        value={cardCvv}
+                                        onChange={(e) => {
+                                          const val = e.target.value.replace(/\D/g, '').substring(0, 4);
+                                          setCardCvv(val);
+                                        }}
+                                        className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 outline-none text-sm font-semibold placeholder:text-slate-300 text-center"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase">CPF ou CNPJ do Titular</label>
+                                    <input 
+                                      type="text" 
+                                      placeholder="000.000.000-00"
+                                      value={cardCpf}
+                                      onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, '').substring(0, 14);
+                                        setCardCpf(val);
+                                      }}
+                                      className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 outline-none text-sm font-semibold placeholder:text-slate-300"
+                                    />
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="text-xs font-bold text-slate-500 uppercase">CEP</label>
+                                      <input 
+                                        type="text" 
+                                        placeholder="00000-000"
+                                        value={cardCep}
+                                        onChange={(e) => {
+                                          const val = e.target.value.replace(/\D/g, '').substring(0, 8);
+                                          let formatted = val;
+                                          if (val.length > 5) {
+                                            formatted = `${val.substring(0, 5)}-${val.substring(5)}`;
+                                          }
+                                          setCardCep(formatted);
+                                        }}
+                                        className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 outline-none text-sm font-semibold placeholder:text-slate-300 text-center"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-xs font-bold text-slate-500 uppercase">Número Res.</label>
+                                      <input 
+                                        type="text" 
+                                        placeholder="123"
+                                        value={cardAddressNum}
+                                        onChange={(e) => setCardAddressNum(e.target.value)}
+                                        className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 outline-none text-sm font-semibold placeholder:text-slate-300 text-center"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Telefone / Celular</label>
+                                    <input 
+                                      type="text" 
+                                      placeholder="(00) 00000-0000"
+                                      value={cardPhone}
+                                      onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, '').substring(0, 11);
+                                        let formatted = val;
+                                        if (val.length > 2) {
+                                          formatted = `(${val.substring(0, 2)}) ${val.substring(2)}`;
+                                        }
+                                        if (val.length > 7) {
+                                          formatted = `(${val.substring(0, 2)}) ${val.substring(2, 7)}-${val.substring(7)}`;
+                                        }
+                                        setCardPhone(formatted);
+                                      }}
+                                      className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 outline-none text-sm font-semibold placeholder:text-slate-300"
+                                    />
+                                  </div>
+
+                                  {/* Checkbox para salvar o cartão */}
+                                  <label className="flex items-center gap-2 pt-2 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={saveNewCard}
+                                      onChange={(e) => setSaveNewCard(e.target.checked)}
+                                      className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                    />
+                                    <span className="text-xs font-black text-slate-600">salvar meus dados de pagamento para usar novamente na proxima vez</span>
+                                  </label>
+                                </div>
+                              ) : (
+                                <div className="p-5 bg-slate-50 rounded-2xl border border-dashed border-indigo-200 text-center flex flex-col items-center gap-2">
+                                  <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 border border-indigo-100">
+                                    <CreditCard className="w-5 h-5" />
+                                  </div>
+                                  <p className="text-xs text-slate-700 font-bold">Cartão de Crédito Salvo Selecionado</p>
+                                  <p className="text-[10px] text-slate-400 max-w-[80%] mx-auto">
+                                    O pagamento será processado de forma segura e imediata utilizando a bandeira {savedCardBrand}.
+                                  </p>
+                                </div>
+                              )}
+
+                              <button
+                                type="button"
+                                disabled={creatingPreference}
+                                onClick={async (e) => {
+                                   e.preventDefault();
+                                   
+                                   if (!useSavedCard && (!cardHolderName || !cardNumber || !cardExpiry || !cardCvv || !cardCpf || !cardCep || !cardAddressNum || !cardPhone)) {
+                                     alert('Por favor, preencha todos os campos do cartão.');
+                                     return;
                                    }
-                                 }}
-                                 customization={{
-                                   paymentMethods: {
-                                     creditCard: "all",
-                                     debitCard: "all"
-                                   },
-                                   visual: {
-                                     texts: {
-                                       // @ts-ignore
-                                       formSubmit: isStaff ? 'receber' : 'pagar'
+
+                                   let expiryParts = ['', ''];
+                                   if (!useSavedCard) {
+                                     expiryParts = cardExpiry.split('/');
+                                     if (expiryParts.length !== 2) {
+                                       alert('Data de validade inválida. Use o formato MM/AA.');
+                                       return;
                                      }
                                    }
-                                 }}
-                                 onSubmit={async (param: any) => {
-                                return new Promise<void>((resolve, reject) => {
-                                 const payload = {
-                                   ...param.formData,
-                                   appointmentIds: billingItems.map((b: any) => b.id),
-                                   userId: selectedClient?.id || user?.id,
-                                   clientName: selectedClient?.name || user?.user_metadata?.full_name || 'Desconhecido'
-                                 };
-                                 
-                                 fetch("/api/pagamentos/process-payment", {
-                                   method: "POST",
-                                   headers: {
-                                     "Content-Type": "application/json",
-                                   },
-                                   body: JSON.stringify(payload),
-                                 })
-                                   .then((res) => res.json())
-                                   .then((response) => {
+
+                                   const cleanCardNumber = cardNumber.replace(/\s/g, '');
+                                   const cleanCpf = cardCpf.replace(/\D/g, '');
+                                   const cleanCep = cardCep.replace(/\D/g, '');
+                                   const cleanPhone = cardPhone.replace(/\D/g, '');
+
+                                   try {
+                                     setCreatingPreference(true);
+                                     const payload: any = {
+                                       transaction_amount: Number(total.toFixed(2)),
+                                       payment_method_id: 'credit_card',
+                                       payer: { email: user?.email || 'cliente@privasconails.com' },
+                                       appointmentIds: billingItems.map((b: any) => b.id),
+                                       userId: selectedClient?.id || user?.id,
+                                       clientName: selectedClient?.name || user?.user_metadata?.full_name || 'Desconhecido',
+                                       gateway: currentGateway,
+                                       saveCard: saveNewCard
+                                     };
+
+                                     if (useSavedCard) {
+                                       payload.creditCardToken = savedCardToken;
+                                     } else {
+                                       payload.creditCard = {
+                                         holderName: cardHolderName,
+                                         number: cleanCardNumber,
+                                         expiryMonth: expiryParts[0],
+                                         expiryYear: '20' + expiryParts[1],
+                                         ccv: cardCvv
+                                       };
+                                       payload.creditCardHolderInfo = {
+                                         name: cardHolderName,
+                                         email: user?.email || 'cliente@privasconails.com',
+                                         cpfCnpj: cleanCpf,
+                                         postalCode: cleanCep,
+                                         addressNumber: cardAddressNum,
+                                         phone: cleanPhone
+                                       };
+                                     }
+                                     
+                                     const req = await fetch("/api/pagamentos/process-payment", {
+                                         method: "POST",
+                                         headers: { "Content-Type": "application/json" },
+                                         body: JSON.stringify(payload),
+                                     });
+                                     const response = await req.json();
+                                     
                                      if (response.error) {
                                         alert("Falha no pagamento: " + response.error);
-                                        reject();
                                      } else if (response.status === 'approved') {
-                                        alert("Pagamento Aprovado com Sucesso!");
-                                        resolve();
+                                        alert("Pagamento por Cartão Aprovado com Sucesso!");
+                                        
+                                        // Resetar form
+                                        setCardHolderName('');
+                                        setCardNumber('');
+                                        setCardExpiry('');
+                                        setCardCvv('');
+                                        setCardCpf('');
+                                        setCardCep('');
+                                        setCardAddressNum('');
+                                        setCardPhone('');
+
                                         if (role === 'admin' || role === 'desenvolvedor') {
                                            setSelectedClient(null);
                                            setViewState('select_client');
                                         } else {
                                            fetchBill(user!.id);
                                         }
-                                     } else if (response.status === 'pending' && response.qr_code) {
-                                        setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64, payment_id: response.id });
-                                        resolve();
                                      } else {
-                                        alert("Aviso: Status do pagamento é " + response.status_detail || response.status);
-                                        reject();
+                                        alert("Aviso: Status do pagamento é " + (response.status_detail || response.status));
                                      }
-                                   })
-                                   .catch((error) => {
-                                     alert("Falha de rede ao tentar processar cartão.");
-                                     reject();
-                                   });
-                               });
-                             }}
-                             onError={async (error) => {
-                               console.error("Erro interno no Brick do MP:", error);
-                             }}
-                             onReady={async () => {
-                               console.log("Payment Brick Carregado com Sucesso");
-                             }}
-                           />
-                        </div>
+                                   } catch (err: any) {
+                                     alert("Falha de rede ao tentar processar o cartão.");
+                                   } finally {
+                                     setCreatingPreference(false);
+                                   }
+                                }}
+                                className="w-full p-4 bg-indigo-600 text-white font-black rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors uppercase tracking-tight text-sm shadow-sm mt-4"
+                              >
+                                {creatingPreference ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
+                                Pagar com Cartão (Asaas)
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          mpPublicKey ? (
+                            <>
+                              <div className="text-center text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest opacity-60">— {isStaff ? 'Receba' : 'Pague'} com Cartão —</div>
+
+                              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-4 relative z-10 w-full">
+                                {/* Seletor de parcelas customizado - visível imediatamente */}
+                                {(() => {
+                                  const feeTable: Record<number, number> = {
+                                    1: 4.99,   // à vista (4.99% processamento)
+                                    2: 9.08,   // 4.99% + 4.09%
+                                    3: 10.40,  // 4.99% + 5.41%
+                                    4: 11.69,  // 4.99% + 6.70%
+                                    5: 12.95,  // 4.99% + 7.96%
+                                    6: 14.19,  // 4.99% + 9.20%
+                                    7: 15.40,  // 4.99% + 10.41%
+                                    8: 16.59,  // 4.99% + 11.60%
+                                    9: 17.76,  // 4.99% + 12.77%
+                                    10: 18.91, // 4.99% + 13.92%
+                                    11: 20.04, // 4.99% + 15.05%
+                                    12: 21.14, // 4.99% + 16.15%
+                                  };
+                                  return (
+                                    <div className="px-4 pt-3 pb-2">
+                                      <p className="text-xs font-semibold text-slate-600 mb-2">Selecione o número de parcelas:</p>
+                                      <div className="grid grid-cols-3 gap-1.5">
+                                        {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => {
+                                          const fee = feeTable[n] ?? 21.14;
+                                          // Cobrado = Original / (1 - Taxa%)
+                                          const totalN = Number((total / (1 - fee / 100)).toFixed(2));
+                                          const perN = Number((totalN / n).toFixed(2));
+                                          const isSelected = selectedInstallments === n;
+                                          return (
+                                            <button
+                                              key={n}
+                                              type="button"
+                                              onClick={() => setSelectedInstallments(n)}
+                                              className={`rounded-lg border p-2 text-left transition-all text-[11px] leading-tight ${
+                                                isSelected
+                                                  ? 'border-[#009EE3] bg-[#009EE3]/10 text-[#007bb5] font-bold shadow-sm'
+                                                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                                              }`}
+                                            >
+                                              <span className="block font-bold text-sm">{n}x</span>
+                                              <span className="block">R$ {perN.toFixed(2).replace('.', ',')}</span>
+                                              <span className="block text-[10px] text-slate-500 mt-0.5">Total R$ {totalN.toFixed(2).replace('.', ',')}</span>
+                                              <span className={`block text-[10px] ${isSelected ? 'text-[#007bb5]' : 'text-slate-400'}`}>
+                                                {n === 1 ? 'à vista' : `+${(fee - 4.99).toFixed(2)}%`}
+                                              </span>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                      <p className="text-[10px] text-amber-600 mt-2">* Taxas de cartão de crédito repassadas ao cliente.</p>
+                                      
+                                      <label className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-100 cursor-pointer text-left">
+                                        <input
+                                          type="checkbox"
+                                          checked={saveNewCard}
+                                          onChange={(e) => setSaveNewCard(e.target.checked)}
+                                          className="w-4 h-4 text-[#009EE3] rounded border-slate-300 focus:ring-[#009EE3]"
+                                        />
+                                        <span className="text-xs font-black text-slate-600">salvar meus dados de pagamento para usar novamente na proxima vez</span>
+                                      </label>
+                                    </div>
+                                  );
+                                })()}
+                                {/* @ts-ignore */}
+                                 <Payment
+                                    key={`${selectedInstallments}_${savedCpf}_${mpCardsIds.join(',')}`}
+                                    initialization={{
+                                      amount: Number((total / (1 - ({1:4.99,2:9.08,3:10.40,4:11.69,5:12.95,6:14.19,7:15.40,8:16.59,9:17.76,10:18.91,11:20.04,12:21.14}[selectedInstallments]??21.14) / 100)).toFixed(2)),
+                                      payer: {
+                                        email: user?.email || 'cliente@privasconails.com',
+                                        identification: savedCpf ? {
+                                          type: 'CPF',
+                                          number: savedCpf
+                                        } : undefined,
+                                        customerId: mpCustomerId || undefined,
+                                        cardsIds: mpCardsIds.length > 0 ? mpCardsIds : undefined
+                                      },
+                                      // @ts-ignore
+                                      installments: selectedInstallments,
+                                    }}
+                                  customization={{
+                                    paymentMethods: {
+                                      creditCard: "all",
+                                      maxInstallments: selectedInstallments,
+                                      minInstallments: selectedInstallments,
+                                    },
+                                    visual: {
+                                      texts: {
+                                        // @ts-ignore
+                                        formSubmit: isStaff ? 'receber' : 'pagar'
+                                      }
+                                    }
+                                  }}
+                                  onSubmit={async (param: any) => {
+                                    return new Promise<void>((resolve, reject) => {
+                                      const feeT: Record<number, number> = {
+                                        1: 4.99,   // à vista (4.99% processamento)
+                                        2: 9.08,   // 4.99% + 4.09%
+                                        3: 10.40,  // 4.99% + 5.41%
+                                        4: 11.69,  // 4.99% + 6.70%
+                                        5: 12.95,  // 4.99% + 7.96%
+                                        6: 14.19,  // 4.99% + 9.20%
+                                        7: 15.40,  // 4.99% + 10.41%
+                                        8: 16.59,  // 4.99% + 11.60%
+                                        9: 17.76,  // 4.99% + 12.77%
+                                        10: 18.91, // 4.99% + 13.92%
+                                        11: 20.04, // 4.99% + 15.05%
+                                        12: 21.14, // 4.99% + 16.15%
+                                      };
+                                      const np = selectedInstallments;
+                                      const tp = feeT[np] ?? 21.14;
+                                      const ta = Number((total / (1 - tp / 100)).toFixed(2));
+                                      const pp = Number((ta / np).toFixed(2));
+                                      const msg = np === 1
+                                        ? 'Total com taxa de 4,99% (cartao credito): R$ ' + ta.toFixed(2).replace('.', ',') + '. Confirmar pagamento?'
+                                        : 'Total com taxa de ' + tp + '% (' + np + 'x no cartao): R$ ' + ta.toFixed(2).replace('.', ',') + ' = ' + np + 'x de R$ ' + pp.toFixed(2).replace('.', ',') + '. Confirmar?';
+                                      if (!window.confirm(msg)) { reject(); return; }
+                                      const payload = {
+                                        ...param.formData,
+                                        installments: np,
+                                        transaction_amount: total,
+                                        appointmentIds: billingItems.map((b: any) => b.id),
+                                        userId: selectedClient?.id || user?.id,
+                                        clientName: selectedClient?.name || user?.user_metadata?.full_name || 'Desconhecido',
+                                        gateway: currentGateway,
+                                        saveCard: saveNewCard
+                                      };
+                                      fetch("/api/pagamentos/process-payment", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify(payload),
+                                      })
+                                        .then((res) => res.json())
+                                        .then((response) => {
+                                          if (response.error) {
+                                            alert("Falha no pagamento: " + response.error);
+                                            reject();
+                                          } else if (response.status === 'approved') {
+                                            alert("Pagamento Aprovado com Sucesso!");
+                                            resolve();
+                                            if (role === 'admin' || role === 'desenvolvedor') {
+                                              setSelectedClient(null);
+                                              setViewState('select_client');
+                                            } else {
+                                              fetchBill(user!.id);
+                                            }
+                                          } else if (response.status === 'pending' && response.qr_code) {
+                                            setPixData({ qr_code: response.qr_code, qr_code_base64: response.qr_code_base64, payment_id: response.id });
+                                            resolve();
+                                          } else {
+                                            alert("Aviso: " + (response.status_detail || response.status));
+                                            reject();
+                                          }
+                                        })
+                                        .catch(() => { alert("Falha de rede."); reject(); });
+                                    });
+                                  }}
+                                  onError={async (error) => {
+                                    console.error("Erro no Brick do MP:", error);
+                                  }}
+                                  onReady={async () => {
+                                    console.log("Payment Brick Carregado");
+                                  }}
+                                 />
+                         </div>
+                            </>
+                          ) : (
+                            <div className="text-center p-6 text-sm font-bold text-slate-400">
+                              Carregando formulário do Mercado Pago...
+                            </div>
+                          )
+                        )}
 
                         {!isStaff && (
                           <div className="w-full">
@@ -902,6 +1403,7 @@ function ContaContent() {
                             </div>
                           </div>
                         )}
+
 
                         <div className="text-center text-xs font-bold text-slate-400 mb-2 mt-6 uppercase tracking-widest opacity-60">— {isStaff ? 'Recebimento Físico (Loja)' : 'Pagamento Físico (Loja)'} —</div>
 

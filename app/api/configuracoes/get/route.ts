@@ -16,7 +16,16 @@ export async function GET() {
     const { data: configs, error } = await supabaseAdmin
       .from('configuracoes')
       .select('id, valor')
-      .in('id', ['tabela_precos', 'whatsapp_studio']);
+      .in('id', [
+        'tabela_precos',
+        'whatsapp_studio',
+        'ACTIVE_GATEWAY',
+        'MERCADO_PAGO_ACCESS_TOKEN',
+        'MERCADO_PAGO_PUBLIC_KEY',
+        'MERCADO_PAGO_SELLER_ACCESS_TOKEN',
+        'MERCADO_PAGO_SELLER_PUBLIC_KEY',
+        'ASAAS_API_KEY'
+      ]);
 
     if (error) {
        console.error("Erro RLS/Admin ao buscar configurações:", error);
@@ -24,11 +33,33 @@ export async function GET() {
     }
 
     const payload: Record<string, any> = {};
+    let hasMercadoPagoAppToken = false;
+    let hasMercadoPagoSellerToken = false;
+    let hasAsaas = false;
+    let devPublicKey = '';
+    let sellerPublicKey = '';
+
     if (configs) {
       for (const c of configs) {
-         payload[c.id] = c.valor;
+         if (c.id === 'MERCADO_PAGO_ACCESS_TOKEN') {
+           hasMercadoPagoAppToken = !!c.valor;
+         } else if (c.id === 'MERCADO_PAGO_SELLER_ACCESS_TOKEN') {
+           hasMercadoPagoSellerToken = !!c.valor;
+         } else if (c.id === 'ASAAS_API_KEY') {
+           hasAsaas = !!c.valor;
+         } else if (c.id === 'MERCADO_PAGO_PUBLIC_KEY') {
+           devPublicKey = c.valor || '';
+         } else if (c.id === 'MERCADO_PAGO_SELLER_PUBLIC_KEY') {
+           sellerPublicKey = c.valor || '';
+         } else {
+           payload[c.id] = c.valor;
+         }
       }
     }
+    
+    payload.hasMercadoPago = hasMercadoPagoAppToken || hasMercadoPagoSellerToken;
+    payload.hasAsaas = hasAsaas;
+    payload.mpPublicKey = sellerPublicKey || devPublicKey || process.env.NEXT_PUBLIC_MP_PUBLIC_KEY || '';
 
     return NextResponse.json({ success: true, data: payload }, { status: 200 });
   } catch (err: any) {
